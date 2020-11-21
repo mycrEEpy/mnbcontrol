@@ -13,6 +13,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	LabelManagedBy            = "mnbr.eu/managed-by"
+	LabelValueMangedByControl = "mnbcontrol"
+	LabelService              = "mnbr.eu/svc"
+	LabelTTL                  = "mnbr.eu/ttl"
+	LabelActiveBlueprint      = "mnbr.eu/active-blueprint"
+)
+
 type Control struct {
 	Config  *ControlConfig
 	api     *http.Server
@@ -85,7 +93,7 @@ func (control *Control) ListServers(ctx *gin.Context) {
 
 	managedServers := make([]*hcloud.Server, 0)
 	for _, s := range servers {
-		if s.Labels["mnbr.eu/managed-by"] == "mnbcontrol" {
+		if s.Labels[LabelManagedBy] == LabelValueMangedByControl {
 			managedServers = append(managedServers, s)
 		}
 	}
@@ -118,9 +126,9 @@ func (control *Control) NewServer(ctx *gin.Context) {
 		Location:         control.Config.location,
 		StartAfterCreate: hcloud.Bool(true),
 		Labels: map[string]string{
-			"mnbr.eu/managed-by": "mnbcontrol",
-			"mnbr.eu/svc":        req.ServerName,
-			"mnbr.eu/ttl":        strconv.Itoa(int(ttl.Unix())),
+			LabelManagedBy: LabelValueMangedByControl,
+			LabelService:   req.ServerName,
+			LabelTTL:       strconv.Itoa(int(ttl.Unix())),
 		},
 		Networks: control.Config.networks,
 		SSHKeys:  control.Config.sshKeys,
@@ -161,7 +169,7 @@ func (control *Control) StartServer(ctx *gin.Context) {
 	}
 	var latestServiceImage *hcloud.Image
 	for _, image := range allImages {
-		if image.Labels["mnbr.eu/svc"] == serverName {
+		if image.Labels[LabelService] == serverName {
 			if latestServiceImage == nil {
 				latestServiceImage = image
 				continue
@@ -188,9 +196,9 @@ func (control *Control) StartServer(ctx *gin.Context) {
 		Location:         control.Config.location,
 		StartAfterCreate: hcloud.Bool(true),
 		Labels: map[string]string{
-			"mnbr.eu/managed-by": "mnbcontrol",
-			"mnbr.eu/svc":        serverName,
-			"mnbr.eu/ttl":        strconv.Itoa(int(ttl.Unix())),
+			LabelManagedBy: LabelValueMangedByControl,
+			LabelService:   serverName,
+			LabelTTL:       strconv.Itoa(int(ttl.Unix())),
 		},
 		Networks: control.Config.networks,
 		SSHKeys:  control.Config.sshKeys,
@@ -256,8 +264,8 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 		Type:        hcloud.ImageTypeSnapshot,
 		Description: hcloud.String(fmt.Sprintf("%s/%s", serverName, time.Now().Format(time.RFC3339))),
 		Labels: map[string]string{
-			"mnbr.eu/managed-by": "mnbcontrol",
-			"mnbr.eu/svc":        serverName,
+			LabelManagedBy: LabelValueMangedByControl,
+			LabelService:   serverName,
 		},
 	})
 	if err != nil {
@@ -291,7 +299,7 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 		return
 	}
 
-	if server.Image.Type == hcloud.ImageTypeSnapshot && server.Image.Labels["mnbr.eu/active-blueprint"] == "true" && !server.Image.Protection.Delete {
+	if server.Image.Type == hcloud.ImageTypeSnapshot && server.Image.Labels[LabelActiveBlueprint] == "true" && !server.Image.Protection.Delete {
 		_, err := control.hclient.Image.Delete(ctx, server.Image)
 		if err != nil {
 			ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
