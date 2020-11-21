@@ -28,10 +28,9 @@ type Control struct {
 }
 
 type ControlConfig struct {
-	blueprintImage *hcloud.Image
-	location       *hcloud.Location
-	networks       []*hcloud.Network
-	sshKeys        []*hcloud.SSHKey
+	location *hcloud.Location
+	networks []*hcloud.Network
+	sshKeys  []*hcloud.SSHKey
 }
 
 type APIError struct {
@@ -111,6 +110,27 @@ func (control *Control) NewServer(ctx *gin.Context) {
 		return
 	}
 
+	allImages, _, err := control.hclient.Image.List(ctx, hcloud.ImageListOpts{})
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
+			fmt.Errorf("failed to list images: %s", err),
+		})
+		return
+	}
+	var blueprintImage *hcloud.Image
+	for _, image := range allImages {
+		if image.Labels[LabelActiveBlueprint] == "true" {
+			blueprintImage = image
+			break
+		}
+	}
+	if blueprintImage == nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
+			fmt.Errorf("unable to find active blueprint image for server %s", req.ServerName),
+		})
+		return
+	}
+
 	ttlDuration, err := time.ParseDuration(req.TTL)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
@@ -122,7 +142,7 @@ func (control *Control) NewServer(ctx *gin.Context) {
 	r, _, err := control.hclient.Server.Create(ctx, hcloud.ServerCreateOpts{
 		Name:             req.ServerName,
 		ServerType:       &hcloud.ServerType{Name: req.ServerType},
-		Image:            control.Config.blueprintImage,
+		Image:            blueprintImage,
 		Location:         control.Config.location,
 		StartAfterCreate: hcloud.Bool(true),
 		Labels: map[string]string{
@@ -180,6 +200,12 @@ func (control *Control) StartServer(ctx *gin.Context) {
 			}
 		}
 	}
+	if latestServiceImage == nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
+			fmt.Errorf("unable to find previous snapshot for server %s", serverName),
+		})
+		return
+	}
 
 	ttlDuration, err := time.ParseDuration(req.TTL)
 	if err != nil {
@@ -192,7 +218,7 @@ func (control *Control) StartServer(ctx *gin.Context) {
 	r, _, err := control.hclient.Server.Create(ctx, hcloud.ServerCreateOpts{
 		Name:             serverName,
 		ServerType:       &hcloud.ServerType{Name: req.ServerType},
-		Image:            control.Config.blueprintImage,
+		Image:            latestServiceImage,
 		Location:         control.Config.location,
 		StartAfterCreate: hcloud.Bool(true),
 		Labels: map[string]string{
@@ -299,7 +325,7 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 		return
 	}
 
-	if server.Image.Type == hcloud.ImageTypeSnapshot && server.Image.Labels[LabelActiveBlueprint] == "true" && !server.Image.Protection.Delete {
+	if server.Image.Type == hcloud.ImageTypeSnapshot && server.Image.Labels[LabelActiveBlueprint] != "true" && !server.Image.Protection.Delete {
 		_, err := control.hclient.Image.Delete(ctx, server.Image)
 		if err != nil {
 			ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
@@ -308,6 +334,8 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 			return
 		}
 		log.Infof("deleted previous snapshot %s[%d]", server.Image.Name, server.Image.ID)
+	} else {
+		log.Infof("skipping deletion of snapshot")
 	}
 
 	// re-get server and check if it's locked until unlocked
