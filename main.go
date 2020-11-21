@@ -17,6 +17,7 @@ var (
 	locationName     = flag.String("locationName", "nbg1", "location name")
 	networkIds       = flag.String("networkIds", "", "comma separated list of network ids")
 	sshKeyIds        = flag.String("sshKeyIds", "", "comma separated list if ssh key ids")
+	dnsZoneId        = flag.String("dnsZoneId", "", "dns zone id")
 )
 
 func init() {
@@ -54,9 +55,10 @@ func main() {
 	}
 
 	control, err := NewControl(&ControlConfig{
-		location: &hcloud.Location{Name: *locationName},
-		networks: networks,
-		sshKeys:  sshKeys,
+		location:  &hcloud.Location{Name: *locationName},
+		networks:  networks,
+		sshKeys:   sshKeys,
+		dnsZoneID: *dnsZoneId,
 	})
 	if err != nil {
 		logrus.Fatalf("failed to create control: %w", err)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -19,6 +20,7 @@ const (
 	LabelService              = "mnbr.eu/svc"
 	LabelTTL                  = "mnbr.eu/ttl"
 	LabelActiveBlueprint      = "mnbr.eu/active-blueprint"
+	LabelDNSRecordID          = "mnbr.eu/dns-record-id"
 )
 
 type Control struct {
@@ -28,13 +30,14 @@ type Control struct {
 }
 
 type ControlConfig struct {
-	location *hcloud.Location
-	networks []*hcloud.Network
-	sshKeys  []*hcloud.SSHKey
+	location  *hcloud.Location
+	networks  []*hcloud.Network
+	sshKeys   []*hcloud.SSHKey
+	dnsZoneID string
 }
 
 type APIError struct {
-	Error error
+	Error string
 }
 
 type CreateNewServerRequest struct {
@@ -85,7 +88,7 @@ func (control *Control) ListServers(ctx *gin.Context) {
 	servers, _, err := control.hclient.Server.List(ctx, hcloud.ServerListOpts{})
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to list servers: %s", err),
+			fmt.Errorf("failed to list servers: %s", err).Error(),
 		})
 		return
 	}
@@ -105,7 +108,7 @@ func (control *Control) NewServer(ctx *gin.Context) {
 	err := ctx.ShouldBindJSON(&req)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			fmt.Errorf("failed to bind request: %s", err),
+			fmt.Errorf("failed to bind request: %s", err).Error(),
 		})
 		return
 	}
@@ -113,7 +116,7 @@ func (control *Control) NewServer(ctx *gin.Context) {
 	allImages, _, err := control.hclient.Image.List(ctx, hcloud.ImageListOpts{})
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to list images: %s", err),
+			fmt.Errorf("failed to list images: %s", err).Error(),
 		})
 		return
 	}
@@ -126,7 +129,7 @@ func (control *Control) NewServer(ctx *gin.Context) {
 	}
 	if blueprintImage == nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("unable to find active blueprint image for server %s", req.ServerName),
+			fmt.Errorf("unable to find active blueprint image for server %s", req.ServerName).Error(),
 		})
 		return
 	}
@@ -134,7 +137,7 @@ func (control *Control) NewServer(ctx *gin.Context) {
 	ttlDuration, err := time.ParseDuration(req.TTL)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			fmt.Errorf("failed to parse ttl duration: %s", err),
+			fmt.Errorf("failed to parse ttl duration: %s", err).Error(),
 		})
 		return
 	}
@@ -155,10 +158,19 @@ func (control *Control) NewServer(ctx *gin.Context) {
 	})
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to create server %s: %s", req.ServerName, err),
+			fmt.Errorf("failed to create server %s: %s", req.ServerName, err).Error(),
 		})
 		return
 	}
+
+	err = control.attachDNSRecordToServer(ctx, r.Server)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
+			fmt.Errorf("failed to attach dns record to server %s: %s", req.ServerName, err).Error(),
+		})
+		return
+	}
+
 	ctx.AbortWithStatusJSON(http.StatusCreated, *r.Server)
 }
 
@@ -166,7 +178,7 @@ func (control *Control) StartServer(ctx *gin.Context) {
 	serverName, ok := ctx.Params.Get("name")
 	if !ok {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			errors.New("missing name parameter"),
+			errors.New("missing name parameter").Error(),
 		})
 		return
 	}
@@ -175,7 +187,7 @@ func (control *Control) StartServer(ctx *gin.Context) {
 	err := ctx.ShouldBindJSON(&req)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			fmt.Errorf("failed to bind request: %s", err),
+			fmt.Errorf("failed to bind request: %s", err).Error(),
 		})
 		return
 	}
@@ -183,7 +195,7 @@ func (control *Control) StartServer(ctx *gin.Context) {
 	allImages, _, err := control.hclient.Image.List(ctx, hcloud.ImageListOpts{})
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to list images: %s", err),
+			fmt.Errorf("failed to list images: %s", err).Error(),
 		})
 		return
 	}
@@ -202,7 +214,7 @@ func (control *Control) StartServer(ctx *gin.Context) {
 	}
 	if latestServiceImage == nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("unable to find previous snapshot for server %s", serverName),
+			fmt.Errorf("unable to find previous snapshot for server %s", serverName).Error(),
 		})
 		return
 	}
@@ -210,7 +222,7 @@ func (control *Control) StartServer(ctx *gin.Context) {
 	ttlDuration, err := time.ParseDuration(req.TTL)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			fmt.Errorf("failed to parse ttl duration: %s", err),
+			fmt.Errorf("failed to parse ttl duration: %s", err).Error(),
 		})
 		return
 	}
@@ -231,10 +243,21 @@ func (control *Control) StartServer(ctx *gin.Context) {
 	})
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to create server %s: %s", serverName, err),
+			fmt.Errorf("failed to create server %s: %s", serverName, err).Error(),
 		})
 		return
 	}
+
+	if len(control.Config.dnsZoneID) > 0 {
+		err = control.attachDNSRecordToServer(ctx, r.Server)
+		if err != nil {
+			ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
+				fmt.Errorf("failed to attach dns record to server %s: %s", serverName, err).Error(),
+			})
+			return
+		}
+	}
+
 	ctx.AbortWithStatusJSON(http.StatusCreated, *r.Server)
 }
 
@@ -242,7 +265,7 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 	serverName, ok := ctx.Params.Get("name")
 	if !ok {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			errors.New("missing name parameter"),
+			errors.New("missing name parameter").Error(),
 		})
 		return
 	}
@@ -250,7 +273,7 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 	server, _, err := control.hclient.Server.Get(ctx, serverName)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to get server %s by name: %s", serverName, err),
+			fmt.Errorf("failed to get server %s by name: %s", serverName, err).Error(),
 		})
 		return
 	}
@@ -258,7 +281,7 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 	shutdownAction, _, err := control.hclient.Server.Shutdown(ctx, server)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to shutdown server %s: %s", serverName, err),
+			fmt.Errorf("failed to shutdown server %s: %s", serverName, err).Error(),
 		})
 		return
 	}
@@ -281,7 +304,7 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 	}()
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			err,
+			err.Error(),
 		})
 		return
 	}
@@ -296,7 +319,7 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 	})
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to create snapshot for server %s: %s", serverName, err),
+			fmt.Errorf("failed to create snapshot for server %s: %s", serverName, err).Error(),
 		})
 		return
 	}
@@ -320,7 +343,7 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 	}()
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			err,
+			err.Error(),
 		})
 		return
 	}
@@ -329,7 +352,7 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 		_, err := control.hclient.Image.Delete(ctx, server.Image)
 		if err != nil {
 			ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-				fmt.Errorf("failed to delete image %s[%d]: %s", server.Image.Name, server.Image.ID, err),
+				fmt.Errorf("failed to delete image %s[%d]: %s", server.Image.Name, server.Image.ID, err).Error(),
 			})
 			return
 		}
@@ -359,7 +382,7 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 	}()
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			err,
+			err.Error(),
 		})
 		return
 	}
@@ -367,11 +390,39 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 	_, err = control.hclient.Server.Delete(ctx, server)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to delete server %s: %s", serverName, err),
+			fmt.Errorf("failed to delete server %s: %s", serverName, err).Error(),
 		})
 		return
 	}
 	log.Infof("deleted server %s", serverName)
 
+	if recordID, ok := server.Labels[LabelDNSRecordID]; ok {
+		err = deleteDNSRecord(recordID)
+		if err != nil {
+			ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
+				fmt.Errorf("failed to delete dns record for server %s: %s", serverName, err).Error(),
+			})
+			return
+		}
+	}
+
 	ctx.Status(http.StatusOK)
+}
+
+func (control *Control) attachDNSRecordToServer(ctx context.Context, server *hcloud.Server) error {
+	dnsRecordID, err := createDNSRecord(control.Config.dnsZoneID, server.Name+".svc", server.PublicNet.IPv4.IP.String())
+	if err != nil {
+		return fmt.Errorf("failed to create dns: %s", err)
+	}
+	labels := server.Labels
+	labels[LabelDNSRecordID] = dnsRecordID
+	_, _, err = control.hclient.Server.Update(ctx, server, hcloud.ServerUpdateOpts{Labels: labels})
+	if err != nil {
+		return fmt.Errorf("failed to attach dns record id to labels: %s", err)
+	}
+	_, _, err = control.hclient.Server.ChangeDNSPtr(ctx, server, server.PublicNet.IPv4.IP.String(), hcloud.String(server.Name+".svc.mnbr.eu"))
+	if err != nil {
+		return fmt.Errorf("failed to change reverse dns pointer for server %s: %s", server.Name, err)
+	}
+	return nil
 }
