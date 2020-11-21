@@ -1,56 +1,53 @@
 package main
 
 import (
-	"context"
-	"errors"
-	"os"
+	"flag"
+	"strconv"
+	"strings"
 
 	"github.com/hetznercloud/hcloud-go/hcloud"
 	log "github.com/sirupsen/logrus"
 )
 
-func newClient() (*hcloud.Client, error) {
-	token, ok := os.LookupEnv("HCLOUD_TOKEN")
-	if !ok {
-		return nil, errors.New("HCLOUD_TOKEN must be set")
-	}
-	return hcloud.NewClient(hcloud.WithToken(token)), nil
-}
-
-func newServer(client *hcloud.Client) (*hcloud.Server, error) {
-	r, _, err := client.Server.Create(context.Background(), hcloud.ServerCreateOpts{
-		Name:             "test",
-		ServerType:       &hcloud.ServerType{Name: "cx11"},
-		Image:            &hcloud.Image{ID: 26408426},
-		Location:         &hcloud.Location{Name: "nbg1"},
-		StartAfterCreate: hcloud.Bool(true),
-		Labels:           map[string]string{"managed-by": "mnbcontrol"},
-		Networks:         []*hcloud.Network{{ID: 194958}},
-		SSHKeys:          []*hcloud.SSHKey{{ID: 2403353}, {ID: 2355137}},
-	})
-	if err != nil {
-		return nil, err
-	}
-	return r.Server, nil
-}
+var (
+	blueprintImageId = flag.Int("blueprintImageId", 26408426, "blueprint image id")
+	locationName     = flag.String("locationName", "nbg1", "location name")
+	networkIds       = flag.String("networkIds", "194958", "comma separated list of network ids")
+	sshKeyIds        = flag.String("sshKeyIds", "2403353,2355137", "comma separated list if ssh key ids")
+)
 
 func main() {
-	client, err := newClient()
+	flag.Parse()
+	var networks []*hcloud.Network
+	var sshKeys []*hcloud.SSHKey
+	networkIdsSplit := strings.Split(*networkIds, ",")
+	for _, networkIdStr := range networkIdsSplit {
+		networkId, err := strconv.Atoi(networkIdStr)
+		if err != nil {
+			log.Fatalf("networkIds must be int")
+		}
+		networks = append(networks, &hcloud.Network{ID: networkId})
+	}
+	sshKeyIdsSplit := strings.Split(*sshKeyIds, ",")
+	for _, sshKeyIdsStr := range sshKeyIdsSplit {
+		sshKeyId, err := strconv.Atoi(sshKeyIdsStr)
+		if err != nil {
+			log.Fatalf("sshKeyIds must be int")
+		}
+		sshKeys = append(sshKeys, &hcloud.SSHKey{ID: sshKeyId})
+	}
+	control, err := NewControl(&ControlConfig{
+		blueprintImage: &hcloud.Image{ID: *blueprintImageId},
+		location:       &hcloud.Location{Name: *locationName},
+		networks:       networks,
+		sshKeys:        sshKeys,
+	})
 	if err != nil {
-		log.Fatalf("failed to create client: %w", err)
+		log.Fatalf("failed to create control: %w", err)
 	}
 
-	//l, _, err := client.SSHKey.List(context.Background(), hcloud.SSHKeyListOpts{})
-	//if err != nil {
-	//	log.Fatalf("failed to list: %w", err)
-	//}
-	//for _, item := range l {
-	//	log.Infof("%+v", item)
-	//}
-
-	server, err := newServer(client)
+	err = control.Run()
 	if err != nil {
-		log.Fatalf("failed to create server: %w", err)
+		log.Fatalf("control api failed: %s", err)
 	}
-	log.Infof("server created: %+v", *server)
 }
