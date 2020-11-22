@@ -17,7 +17,7 @@ var (
 	locationName     = flag.String("locationName", "nbg1", "location name")
 	networkIDs       = flag.String("networkIDs", "", "comma separated list of network ids")
 	sshKeyIDs        = flag.String("sshKeyIDs", "", "comma separated list if ssh key ids")
-	dnsZoneID        = flag.String("dnsZoneID", "", "dns zone id")
+	dnsZoneID        = flag.String("dnsZoneID", "", "dns zone id, can be empty for disabling dns support")
 	discordCallback  = flag.String("discordCallback", "http://localhost:8000/auth/callback?provider=discord", "discord oauth callback url")
 	discordGuildID   = flag.String("discordGuildID", "", "discord guild id for authorization")
 	discordRoleID    = flag.String("discordRoleID", "", "discord role id for authorization")
