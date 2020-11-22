@@ -35,10 +35,11 @@ type Control struct {
 }
 
 type ControlConfig struct {
-	location  *hcloud.Location
-	networks  []*hcloud.Network
-	sshKeys   []*hcloud.SSHKey
-	dnsZoneID string
+	ListenAddr string
+	Location   *hcloud.Location
+	Networks   []*hcloud.Network
+	SSHKeys    []*hcloud.SSHKey
+	DNSZoneID  string
 }
 
 type APIError struct {
@@ -78,7 +79,7 @@ func NewControl(config *ControlConfig) (*Control, error) {
 	engine := gin.New()
 	engine.Use(gin.Recovery(), gin.Logger())
 	control.api = &http.Server{
-		Addr:    ":8000",
+		Addr:    config.ListenAddr,
 		Handler: engine,
 	}
 
@@ -199,15 +200,15 @@ func (control *Control) NewServer(ctx *gin.Context) {
 		Name:             req.ServerName,
 		ServerType:       &hcloud.ServerType{Name: req.ServerType},
 		Image:            blueprintImage,
-		Location:         control.Config.location,
+		Location:         control.Config.Location,
 		StartAfterCreate: hcloud.Bool(true),
 		Labels: map[string]string{
 			LabelManagedBy: LabelValueMangedByControl,
 			LabelService:   req.ServerName,
 			LabelTTL:       strconv.Itoa(int(ttl.Unix())),
 		},
-		Networks: control.Config.networks,
-		SSHKeys:  control.Config.sshKeys,
+		Networks: control.Config.Networks,
+		SSHKeys:  control.Config.SSHKeys,
 	})
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
@@ -284,15 +285,15 @@ func (control *Control) StartServer(ctx *gin.Context) {
 		Name:             serverName,
 		ServerType:       &hcloud.ServerType{Name: req.ServerType},
 		Image:            latestServiceImage,
-		Location:         control.Config.location,
+		Location:         control.Config.Location,
 		StartAfterCreate: hcloud.Bool(true),
 		Labels: map[string]string{
 			LabelManagedBy: LabelValueMangedByControl,
 			LabelService:   serverName,
 			LabelTTL:       strconv.Itoa(int(ttl.Unix())),
 		},
-		Networks: control.Config.networks,
-		SSHKeys:  control.Config.sshKeys,
+		Networks: control.Config.Networks,
+		SSHKeys:  control.Config.SSHKeys,
 	})
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
@@ -301,7 +302,7 @@ func (control *Control) StartServer(ctx *gin.Context) {
 		return
 	}
 
-	if len(control.Config.dnsZoneID) > 0 {
+	if len(control.Config.DNSZoneID) > 0 {
 		err = control.attachDNSRecordToServer(ctx, r.Server)
 		if err != nil {
 			ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
@@ -463,7 +464,7 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 }
 
 func (control *Control) attachDNSRecordToServer(ctx context.Context, server *hcloud.Server) error {
-	dnsRecordID, err := createDNSRecord(control.Config.dnsZoneID, server.Name+".svc", server.PublicNet.IPv4.IP.String())
+	dnsRecordID, err := createDNSRecord(control.Config.DNSZoneID, server.Name+".svc", server.PublicNet.IPv4.IP.String())
 	if err != nil {
 		return fmt.Errorf("failed to create dns: %s", err)
 	}

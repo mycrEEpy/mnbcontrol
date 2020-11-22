@@ -27,6 +27,7 @@ required environment variables and pass some flags.
 | logLevel         | int    | 4                                                    | log level (0-6)
 | logReportCaller  | bool   | true                                                 | log report caller
 | logFormatterJson | bool   | false                                                | log formatter json
+| listenAddr       | string | :8000                                                | http server listen address
 | locationName     | string | nbg1                                                 | Hetzner location name
 | networkIDs       | string |                                                      | comma separated list of network ids
 | sshKeyIDs        | string |                                                      | comma separated list if ssh key ids

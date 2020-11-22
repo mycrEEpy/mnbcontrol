@@ -14,6 +14,7 @@ var (
 	logLevel         = flag.Int("logLevel", 4, "log level (0-6)")
 	logReportCaller  = flag.Bool("logReportCaller", true, "log report caller")
 	logFormatterJSON = flag.Bool("logFormatterJson", false, "log formatter json")
+	listenAddr       = flag.String("listenAddr", ":8000", "http server listen address")
 	locationName     = flag.String("locationName", "nbg1", "location name")
 	networkIDs       = flag.String("networkIDs", "", "comma separated list of network ids")
 	sshKeyIDs        = flag.String("sshKeyIDs", "", "comma separated list if ssh key ids")
@@ -61,10 +62,11 @@ func main() {
 	}
 
 	control, err := NewControl(&ControlConfig{
-		location:  &hcloud.Location{Name: *locationName},
-		networks:  networks,
-		sshKeys:   sshKeys,
-		dnsZoneID: *dnsZoneID,
+		ListenAddr: *listenAddr,
+		Location:   &hcloud.Location{Name: *locationName},
+		Networks:   networks,
+		SSHKeys:    sshKeys,
+		DNSZoneID:  *dnsZoneID,
 	})
 	if err != nil {
 		logrus.Fatalf("failed to create control: %w", err)
