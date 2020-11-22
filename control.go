@@ -6,9 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"sync"
+	"syscall"
 	"time"
 
+	"github.com/bwmarrin/discordgo"
 	"github.com/gin-gonic/gin"
 	"github.com/hetznercloud/hcloud-go/hcloud"
 	log "github.com/sirupsen/logrus"
@@ -24,9 +28,10 @@ const (
 )
 
 type Control struct {
-	Config  *ControlConfig
-	api     *http.Server
-	hclient *hcloud.Client
+	Config         *ControlConfig
+	api            *http.Server
+	hclient        *hcloud.Client
+	discordSession *discordgo.Session
 }
 
 type ControlConfig struct {
@@ -37,7 +42,7 @@ type ControlConfig struct {
 }
 
 type APIError struct {
-	Error string
+	Error string `json:"error"`
 }
 
 type CreateNewServerRequest struct {
@@ -63,6 +68,12 @@ func NewControl(config *ControlConfig) (*Control, error) {
 	}
 	control.hclient = hcloud.NewClient(hcloud.WithToken(token), hcloud.WithPollInterval(1*time.Second))
 
+	var err error
+	control.discordSession, err = discordgo.New("Bot " + os.Getenv("DISCORD_BOT_TOKEN"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create discord session: %s", err)
+	}
+
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
 	engine.Use(gin.Recovery(), gin.Logger())
@@ -71,17 +82,59 @@ func NewControl(config *ControlConfig) (*Control, error) {
 		Handler: engine,
 	}
 
-	engine.GET("/server", control.ListServers)
-	engine.POST("/server", control.NewServer)
-	engine.POST("/server/:name/_start", control.StartServer)
-	engine.DELETE("/server/:name", control.TerminateServer)
+	apiV1 := engine.Group("/api/v1")
+	apiV1.Use(control.Authorize())
+
+	apiServer := apiV1.Group("/server")
+	apiServer.GET("/", control.ListServers)
+	apiServer.POST("/", control.NewServer)
+	apiServer.POST("/:name/_start", control.StartServer)
+	apiServer.DELETE("/:name", control.TerminateServer)
+
+	auth := engine.Group("/auth")
+	auth.GET("/", AuthLogin)
+	auth.GET("/callback", AuthCallback)
+	auth.GET("/logout", AuthLogout)
+
+	//engine.Static("/", "./web")
 
 	return control, nil
 }
 
 func (control *Control) Run() error {
+	log.Info("control is warming up")
+	err := control.discordSession.Open()
+	if err != nil {
+		return fmt.Errorf("failed to open discord session: %s", err)
+	}
+
+	shutdownChan := make(chan os.Signal)
+	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
+	shutdownWG := &sync.WaitGroup{}
+	shutdownWG.Add(1)
+	go control.waitForShutdown(shutdownChan, shutdownWG)
+
 	log.Infof("control api listening on %s", control.api.Addr)
-	return control.api.ListenAndServe()
+	if err = control.api.ListenAndServe(); err != http.ErrServerClosed {
+		return fmt.Errorf("control api server failed: %s", err)
+	}
+	shutdownWG.Wait()
+	return nil
+}
+
+func (control *Control) waitForShutdown(shutdownChan <-chan os.Signal, shutdownWG *sync.WaitGroup) {
+	<-shutdownChan
+	err := control.discordSession.Close()
+	if err != nil {
+		log.Errorf("failed to close discord session: %s", err)
+	}
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	err = control.api.Shutdown(ctx)
+	if err != nil {
+		log.Errorf("failed to shutdown api server: %s", err)
+	}
+	log.Info("control shutdown complete, see you next time!")
+	shutdownWG.Done()
 }
 
 func (control *Control) ListServers(ctx *gin.Context) {
