@@ -100,7 +100,7 @@ func (control *Control) ListServers(ctx *gin.Context) {
 		}
 	}
 
-	ctx.AbortWithStatusJSON(http.StatusOK, managedServers)
+	ctx.JSON(http.StatusOK, managedServers)
 }
 
 func (control *Control) NewServer(ctx *gin.Context) {
@@ -171,7 +171,7 @@ func (control *Control) NewServer(ctx *gin.Context) {
 		return
 	}
 
-	ctx.AbortWithStatusJSON(http.StatusCreated, *r.Server)
+	ctx.JSON(http.StatusCreated, *r.Server)
 }
 
 func (control *Control) StartServer(ctx *gin.Context) {
@@ -258,7 +258,7 @@ func (control *Control) StartServer(ctx *gin.Context) {
 		}
 	}
 
-	ctx.AbortWithStatusJSON(http.StatusCreated, *r.Server)
+	ctx.JSON(http.StatusCreated, *r.Server)
 }
 
 func (control *Control) TerminateServer(ctx *gin.Context) {
