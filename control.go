@@ -122,11 +122,12 @@ func (control *Control) Run() error {
 		return fmt.Errorf("failed to open discord session: %s", err)
 	}
 
-	shutdownChan := make(chan os.Signal)
-	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
 	shutdownWG := &sync.WaitGroup{}
-	shutdownWG.Add(1)
-	go control.waitForShutdown(shutdownChan, shutdownWG)
+	shutdownChan := make(chan os.Signal)
+	daemonQuitChan := make(chan os.Signal)
+	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
+	go control.daemon(daemonQuitChan, shutdownWG)
+	go control.waitForShutdown(shutdownChan, daemonQuitChan, shutdownWG)
 
 	log.Infof("control api listening on %s", control.api.Addr)
 	if err = control.api.ListenAndServe(); err != http.ErrServerClosed {
@@ -136,8 +137,61 @@ func (control *Control) Run() error {
 	return nil
 }
 
-func (control *Control) waitForShutdown(shutdownChan <-chan os.Signal, shutdownWG *sync.WaitGroup) {
-	<-shutdownChan
+func (control *Control) daemon(quit <-chan os.Signal, wg *sync.WaitGroup) {
+	log.Infof("control daemon started")
+	wg.Add(1)
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			log.Debug("daemon ticker triggered")
+			managedServers, err := control.listServers(context.Background())
+			if err != nil {
+				log.Errorf("daemon error: %s", err)
+				break
+			}
+			now := time.Now()
+			for _, s := range managedServers {
+				log.Debugf("checking ttl for managedServer: %+v", *s)
+				if s.Status != hcloud.ServerStatusRunning && s.Status != hcloud.ServerStatusOff {
+					log.Infof("daemon warn: server %s is in status %s, skipping", s.Name, s.Status)
+					continue
+				}
+				ttlStr, ok := s.Labels[LabelTTL]
+				if !ok {
+					log.Errorf("daemon error: ttl label missing on server %s", s.Name)
+					continue
+				}
+				ttlInt, err := strconv.Atoi(ttlStr)
+				if err != nil {
+					log.Errorf("daemon error: failed to parse ttl: %s", err)
+					continue
+				}
+				ttl := time.Unix(int64(ttlInt), 0)
+				if now.After(ttl) {
+					log.Infof("daemon: server %s is past its ttl, terminating now", s.Name)
+					err = control.terminateServer(context.Background(), s.Name)
+					if err != nil {
+						log.Errorf("daemon error: failed to terminate server %s: %s", s.Name, err)
+						continue
+					}
+				}
+				log.Debugf("duration until server %s will reach its ttl: %s -> %s", s.Name, ttl.Sub(now), ttl)
+			}
+			ticker.Reset(1 * time.Minute)
+		case <-quit:
+			wg.Done()
+			log.Info("daemon shutdown complete")
+			return
+		}
+	}
+}
+
+func (control *Control) waitForShutdown(shutdownChan <-chan os.Signal, quitChan chan<- os.Signal, shutdownWG *sync.WaitGroup) {
+	shutdownWG.Add(1)
+	sig := <-shutdownChan
+	quitChan <- sig
 	err := control.discordSession.Close()
 	if err != nil {
 		log.Errorf("failed to close discord session: %s", err)
@@ -152,22 +206,28 @@ func (control *Control) waitForShutdown(shutdownChan <-chan os.Signal, shutdownW
 }
 
 func (control *Control) ListServers(ctx *gin.Context) {
-	servers, _, err := control.hclient.Server.List(ctx, hcloud.ServerListOpts{})
+	managedServers, err := control.listServers(ctx)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to list servers: %s", err).Error(),
+			err.Error(),
 		})
 		return
 	}
+	ctx.JSON(http.StatusOK, managedServers)
+}
 
-	managedServers := make([]*hcloud.Server, 0)
+func (control *Control) listServers(ctx context.Context) ([]*hcloud.Server, error) {
+	servers, _, err := control.hclient.Server.List(ctx, hcloud.ServerListOpts{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list servers: %s", err)
+	}
+	var managedServers []*hcloud.Server
 	for _, s := range servers {
 		if s.Labels[LabelManagedBy] == LabelValueMangedByControl {
 			managedServers = append(managedServers, s)
 		}
 	}
-
-	ctx.JSON(http.StatusOK, managedServers)
+	return managedServers, nil
 }
 
 func (control *Control) NewServer(ctx *gin.Context) {
@@ -336,21 +396,25 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 		})
 		return
 	}
-
-	server, _, err := control.hclient.Server.Get(ctx, serverName)
+	err := control.terminateServer(ctx, serverName)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to get server %s by name: %s", serverName, err).Error(),
+			err.Error(),
 		})
 		return
+	}
+	ctx.Status(http.StatusOK)
+}
+
+func (control *Control) terminateServer(ctx context.Context, serverName string) error {
+	server, _, err := control.hclient.Server.Get(ctx, serverName)
+	if err != nil {
+		return fmt.Errorf("failed to get server %s by name: %s", serverName, err)
 	}
 
 	shutdownAction, _, err := control.hclient.Server.Shutdown(ctx, server)
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to shutdown server %s: %s", serverName, err).Error(),
-		})
-		return
+		return fmt.Errorf("failed to shutdown server %s: %s", serverName, err)
 	}
 	progressChan, errChan := control.hclient.Action.WatchProgress(ctx, shutdownAction)
 	err = func() error {
@@ -370,10 +434,7 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 		}
 	}()
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			err.Error(),
-		})
-		return
+		return err
 	}
 
 	imageResult, _, err := control.hclient.Server.CreateImage(ctx, server, &hcloud.ServerCreateImageOpts{
@@ -385,10 +446,7 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 		},
 	})
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to create snapshot for server %s: %s", serverName, err).Error(),
-		})
-		return
+		return fmt.Errorf("failed to create snapshot for server %s: %s", serverName, err)
 	}
 
 	progressChan, errChan = control.hclient.Action.WatchProgress(ctx, imageResult.Action)
@@ -409,19 +467,13 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 		}
 	}()
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			err.Error(),
-		})
-		return
+		return err
 	}
 
 	if server.Image.Type == hcloud.ImageTypeSnapshot && server.Image.Labels[LabelActiveBlueprint] != "true" && !server.Image.Protection.Delete {
 		_, err := control.hclient.Image.Delete(ctx, server.Image)
 		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-				fmt.Errorf("failed to delete image %s[%d]: %s", server.Image.Name, server.Image.ID, err).Error(),
-			})
-			return
+			return fmt.Errorf("failed to delete image %s[%d]: %s", server.Image.Name, server.Image.ID, err)
 		}
 		log.Infof("deleted previous snapshot %s[%d]", server.Image.Name, server.Image.ID)
 	} else {
@@ -430,7 +482,9 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 
 	// re-get server and check if it's locked until unlocked
 	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
 	timeout := time.NewTimer(60 * time.Second)
+	defer timeout.Stop()
 	err = func() error {
 		for {
 			select {
@@ -448,32 +502,23 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 		}
 	}()
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			err.Error(),
-		})
-		return
+		return err
 	}
 
 	_, err = control.hclient.Server.Delete(ctx, server)
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to delete server %s: %s", serverName, err).Error(),
-		})
-		return
+		return fmt.Errorf("failed to delete server %s: %s", serverName, err)
 	}
 	log.Infof("deleted server %s", serverName)
 
 	if recordID, ok := server.Labels[LabelDNSRecordID]; ok {
 		err = deleteDNSRecord(recordID)
 		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-				fmt.Errorf("failed to delete dns record for server %s: %s", serverName, err).Error(),
-			})
-			return
+			return fmt.Errorf("failed to delete dns record for server %s: %s", serverName, err)
 		}
 	}
 
-	ctx.Status(http.StatusOK)
+	return nil
 }
 
 func (control *Control) attachDNSRecordToServer(ctx context.Context, server *hcloud.Server) error {
