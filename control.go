@@ -13,13 +13,9 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/hetznercloud/hcloud-go/hcloud"
-	"github.com/markbates/goth/gothic"
 	log "github.com/sirupsen/logrus"
-	csrf "github.com/utrack/gin-csrf"
 )
 
 const (
@@ -83,17 +79,17 @@ func NewControl(config *ControlConfig) (*Control, error) {
 	engine := gin.New()
 	engine.Use(gin.Recovery(), gin.Logger())
 
-	store := cookie.NewStore([]byte(os.Getenv("SESSION_SECRET")))
-	engine.Use(sessions.Sessions("mnbcontrol_session", store))
-	engine.Use(csrf.Middleware(csrf.Options{
-		Secret: os.Getenv("CSRF_SECRET"),
-		ErrorFunc: func(c *gin.Context) {
-			c.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-				errors.New("CSRF token mismatch").Error(),
-			})
-		},
-	}))
-	gothic.Store = store
+	//store := cookie.NewStore([]byte(os.Getenv("SESSION_SECRET")))
+	//engine.Use(sessions.Sessions("mnbcontrol_session", store))
+	//engine.Use(csrf.Middleware(csrf.Options{
+	//	Secret: os.Getenv("CSRF_SECRET"),
+	//	ErrorFunc: func(c *gin.Context) {
+	//		c.AbortWithStatusJSON(http.StatusBadRequest, APIError{
+	//			errors.New("CSRF token mismatch").Error(),
+	//		})
+	//	},
+	//}))
+	//gothic.Store = store
 
 	control.api = &http.Server{
 		Addr:    config.ListenAddr,
