@@ -17,6 +17,7 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/hetznercloud/hcloud-go/hcloud"
+	"github.com/markbates/goth/gothic"
 	log "github.com/sirupsen/logrus"
 	csrf "github.com/utrack/gin-csrf"
 )
@@ -80,9 +81,11 @@ func NewControl(config *ControlConfig) (*Control, error) {
 
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
+	engine.Use(gin.Recovery(), gin.Logger())
+
 	store := cookie.NewStore([]byte(os.Getenv("SESSION_SECRET")))
 	engine.Use(sessions.Sessions("mnbcontrol_session", store))
-	engine.Use(gin.Recovery(), gin.Logger(), csrf.Middleware(csrf.Options{
+	engine.Use(csrf.Middleware(csrf.Options{
 		Secret: os.Getenv("CSRF_SECRET"),
 		ErrorFunc: func(c *gin.Context) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, APIError{
@@ -90,6 +93,8 @@ func NewControl(config *ControlConfig) (*Control, error) {
 			})
 		},
 	}))
+	gothic.Store = store
+
 	control.api = &http.Server{
 		Addr:    config.ListenAddr,
 		Handler: engine,
