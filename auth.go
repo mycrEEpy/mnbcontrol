@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
@@ -73,15 +74,22 @@ func AuthLogout(ctx *gin.Context) {
 
 func (control *Control) Authorize() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		authCookie, err := ctx.Request.Cookie(WebTokenCookieName)
-		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
-				errors.New("unauthorized: missing auth").Error(),
-			})
-			return
+		var tokenStr string
+		authHeader := ctx.Request.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+		} else {
+			authCookie, err := ctx.Request.Cookie(WebTokenCookieName)
+			if err != nil {
+				ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
+					errors.New("unauthorized: missing auth").Error(),
+				})
+				return
+			}
+			tokenStr = authCookie.Value
 		}
 
-		token, err := jwt.Parse(authCookie.Value, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
