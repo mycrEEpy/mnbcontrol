@@ -18,6 +18,7 @@ required environment variables and pass some flags.
 | DISCORD_SECRET    | Discord Secret Token used for OAuth2
 | DISCORD_BOT_TOKEN | Discord Bot Token for interacting with the Discord API
 | SESSION_SECRET    | Secret needed for the session store used by `goth`
+| CSRF_SECRET       | Secret needed for preventing CSRF attacks
 | JWT_SIGNING_KEY   | Secret for singing the JSON Web Tokens
 
 ### Flags

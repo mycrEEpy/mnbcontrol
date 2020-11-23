@@ -9,4 +9,5 @@ require (
 	github.com/hetznercloud/hcloud-go v1.23.1
 	github.com/markbates/goth v1.66.0
 	github.com/sirupsen/logrus v1.7.0
+	github.com/utrack/gin-csrf v0.0.0-20190424104817-40fb8d2c8fca // indirect
 )

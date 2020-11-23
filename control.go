@@ -13,9 +13,12 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/hetznercloud/hcloud-go/hcloud"
 	log "github.com/sirupsen/logrus"
+	csrf "github.com/utrack/gin-csrf"
 )
 
 const (
@@ -77,7 +80,16 @@ func NewControl(config *ControlConfig) (*Control, error) {
 
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
-	engine.Use(gin.Recovery(), gin.Logger())
+	store := cookie.NewStore([]byte(os.Getenv("SESSION_SECRET")))
+	engine.Use(sessions.Sessions("mnbcontrol_session", store))
+	engine.Use(gin.Recovery(), gin.Logger(), csrf.Middleware(csrf.Options{
+		Secret: os.Getenv("CSRF_SECRET"),
+		ErrorFunc: func(c *gin.Context) {
+			c.AbortWithStatusJSON(http.StatusBadRequest, APIError{
+				errors.New("CSRF token mismatch").Error(),
+			})
+		},
+	}))
 	control.api = &http.Server{
 		Addr:    config.ListenAddr,
 		Handler: engine,
