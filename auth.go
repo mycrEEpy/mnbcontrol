@@ -62,7 +62,11 @@ func AuthCallback(ctx *gin.Context) {
 		return
 	}
 	ctx.SetCookie(WebTokenCookieName, tokenString, int(expiration.Seconds()), "/", "", false, true)
-	ctx.Status(http.StatusOK)
+	ctx.JSON(http.StatusOK, struct {
+		WebToken string `json:"webToken"`
+	}{
+		WebToken: tokenString,
+	})
 }
 
 func AuthLogout(ctx *gin.Context) {
