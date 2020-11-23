@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
@@ -47,8 +48,11 @@ func AuthCallback(ctx *gin.Context) {
 		return
 	}
 
+	expiration := 1 * time.Hour
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"userID": user.UserID,
+		"exp":    time.Now().Add(expiration).Format(time.RFC3339),
 	})
 	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SIGNING_KEY")))
 	if err != nil {
@@ -57,7 +61,7 @@ func AuthCallback(ctx *gin.Context) {
 		})
 		return
 	}
-	ctx.SetCookie(WebTokenCookieName, tokenString, 86400, "/", "", false, true)
+	ctx.SetCookie(WebTokenCookieName, tokenString, int(expiration.Seconds()), "/", "", false, true)
 	ctx.Status(http.StatusOK)
 }
 
@@ -117,6 +121,19 @@ func (control *Control) Authorize() gin.HandlerFunc {
 		if !ok {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
 				errors.New("unauthorized: unexpected token claims").Error(),
+			})
+			return
+		}
+		expiration, err := time.Parse(time.RFC3339, fmt.Sprint(claims["exp"]))
+		if err != nil {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
+				errors.New("unauthorized: unexpected expiration format").Error(),
+			})
+			return
+		}
+		if time.Now().After(expiration) {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
+				errors.New("unauthorized: token has been expired").Error(),
 			})
 			return
 		}
