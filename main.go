@@ -10,6 +10,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	Version = "v0.3.1"
+)
+
 var (
 	logLevel         = flag.Int("logLevel", 4, "log level (0-6)")
 	logReportCaller  = flag.Bool("logReportCaller", true, "log report caller")
@@ -38,6 +42,7 @@ func init() {
 }
 
 func main() {
+	logrus.Infof("control version: %s", Version)
 	var networks []*hcloud.Network
 	var sshKeys []*hcloud.SSHKey
 	if len(*networkIDs) > 0 {
