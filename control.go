@@ -74,6 +74,8 @@ func NewControl(config *ControlConfig) (*Control, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create discord session: %s", err)
 	}
+	control.discordSession.AddHandler(control.handleDiscordMessage)
+	control.discordSession.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsDirectMessages)
 
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
@@ -140,7 +142,8 @@ func (control *Control) Run() error {
 func (control *Control) daemon(quit <-chan os.Signal, wg *sync.WaitGroup) {
 	log.Infof("control daemon started")
 	wg.Add(1)
-	ticker := time.NewTicker(1 * time.Minute)
+	tickerDuration := 5 * time.Minute
+	ticker := time.NewTicker(tickerDuration)
 	defer ticker.Stop()
 	for {
 		select {
@@ -179,7 +182,7 @@ func (control *Control) daemon(quit <-chan os.Signal, wg *sync.WaitGroup) {
 				}
 				log.Debugf("duration until server %s will reach its ttl: %s -> %s", s.Name, ttl.Sub(now), ttl)
 			}
-			ticker.Reset(1 * time.Minute)
+			ticker.Reset(tickerDuration)
 		case <-quit:
 			wg.Done()
 			log.Info("daemon shutdown complete")

@@ -149,14 +149,7 @@ func (control *Control) Authorize() gin.HandlerFunc {
 			})
 			return
 		}
-		var hasAccess bool
-		for _, role := range member.Roles {
-			if role == *discordRoleID {
-				hasAccess = true
-				break
-			}
-		}
-		if !hasAccess {
+		if !memberHasRole(member, *discordRoleID) {
 			ctx.AbortWithStatusJSON(http.StatusForbidden, APIError{
 				fmt.Errorf("forbidden: permission check failed: %s", err).Error(),
 			})
