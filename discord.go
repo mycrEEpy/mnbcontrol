@@ -9,7 +9,8 @@ import (
 )
 
 func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.Author.Bot {
+	// don't talk to yourself :)
+	if m.Author.ID == s.State.User.ID {
 		return
 	}
 
