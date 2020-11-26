@@ -53,6 +53,7 @@ type CreateNewServerRequest struct {
 }
 
 type StartServerRequest struct {
+	ServerName string `json:"serverName"`
 	ServerType string `json:"serverType"`
 	TTL        string `json:"ttl"`
 }
@@ -243,12 +244,21 @@ func (control *Control) NewServer(ctx *gin.Context) {
 		return
 	}
 
-	allImages, _, err := control.hclient.Image.List(ctx, hcloud.ImageListOpts{})
+	server, err := control.newServer(ctx, req)
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to list images: %s", err).Error(),
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
+			fmt.Errorf("failed to create new server: %s", err).Error(),
 		})
 		return
+	}
+
+	ctx.JSON(http.StatusCreated, server)
+}
+
+func (control *Control) newServer(ctx context.Context, req CreateNewServerRequest) (*hcloud.Server, error) {
+	allImages, _, err := control.hclient.Image.List(ctx, hcloud.ImageListOpts{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list images: %s", err)
 	}
 	var blueprintImage *hcloud.Image
 	for _, image := range allImages {
@@ -258,18 +268,12 @@ func (control *Control) NewServer(ctx *gin.Context) {
 		}
 	}
 	if blueprintImage == nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("unable to find active blueprint image for server %s", req.ServerName).Error(),
-		})
-		return
+		return nil, fmt.Errorf("unable to find active blueprint image for server %s", req.ServerName)
 	}
 
 	ttlDuration, err := time.ParseDuration(req.TTL)
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			fmt.Errorf("failed to parse ttl duration: %s", err).Error(),
-		})
-		return
+		return nil, fmt.Errorf("failed to parse ttl duration: %s", err)
 	}
 	ttl := time.Now().Add(ttlDuration)
 	r, _, err := control.hclient.Server.Create(ctx, hcloud.ServerCreateOpts{
@@ -287,21 +291,15 @@ func (control *Control) NewServer(ctx *gin.Context) {
 		SSHKeys:  control.Config.SSHKeys,
 	})
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to create server %s: %s", req.ServerName, err).Error(),
-		})
-		return
+		return nil, fmt.Errorf("failed to create server %s: %s", req.ServerName, err)
 	}
 
 	err = control.attachDNSRecordToServer(ctx, r.Server)
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to attach dns record to server %s: %s", req.ServerName, err).Error(),
-		})
-		return
+		return nil, fmt.Errorf("failed to attach dns record to server %s: %s", req.ServerName, err)
 	}
 
-	ctx.JSON(http.StatusCreated, *r.Server)
+	return r.Server, nil
 }
 
 func (control *Control) StartServer(ctx *gin.Context) {
@@ -312,7 +310,6 @@ func (control *Control) StartServer(ctx *gin.Context) {
 		})
 		return
 	}
-
 	var req StartServerRequest
 	err := ctx.ShouldBindJSON(&req)
 	if err != nil {
@@ -321,17 +318,25 @@ func (control *Control) StartServer(ctx *gin.Context) {
 		})
 		return
 	}
-
-	allImages, _, err := control.hclient.Image.List(ctx, hcloud.ImageListOpts{})
+	req.ServerName = serverName
+	server, err := control.startServer(ctx, req)
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to list images: %s", err).Error(),
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
+			fmt.Errorf("failed to start server: %s", err).Error(),
 		})
 		return
 	}
+	ctx.JSON(http.StatusCreated, server)
+}
+
+func (control *Control) startServer(ctx context.Context, req StartServerRequest) (*hcloud.Server, error) {
+	allImages, _, err := control.hclient.Image.List(ctx, hcloud.ImageListOpts{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list images: %s", err)
+	}
 	var latestServiceImage *hcloud.Image
 	for _, image := range allImages {
-		if image.Labels[LabelService] == serverName {
+		if image.Labels[LabelService] == req.ServerName {
 			if latestServiceImage == nil {
 				latestServiceImage = image
 				continue
@@ -343,52 +348,40 @@ func (control *Control) StartServer(ctx *gin.Context) {
 		}
 	}
 	if latestServiceImage == nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("unable to find previous snapshot for server %s", serverName).Error(),
-		})
-		return
+		return nil, fmt.Errorf("unable to find previous snapshot for server %s", req.ServerName)
 	}
 
 	ttlDuration, err := time.ParseDuration(req.TTL)
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			fmt.Errorf("failed to parse ttl duration: %s", err).Error(),
-		})
-		return
+		return nil, fmt.Errorf("failed to parse ttl duration: %s", err)
 	}
 	ttl := time.Now().Add(ttlDuration)
 	r, _, err := control.hclient.Server.Create(ctx, hcloud.ServerCreateOpts{
-		Name:             serverName,
+		Name:             req.ServerName,
 		ServerType:       &hcloud.ServerType{Name: req.ServerType},
 		Image:            latestServiceImage,
 		Location:         control.Config.Location,
 		StartAfterCreate: hcloud.Bool(true),
 		Labels: map[string]string{
 			LabelManagedBy: LabelValueMangedByControl,
-			LabelService:   serverName,
+			LabelService:   req.ServerName,
 			LabelTTL:       strconv.Itoa(int(ttl.Unix())),
 		},
 		Networks: control.Config.Networks,
 		SSHKeys:  control.Config.SSHKeys,
 	})
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed to create server %s: %s", serverName, err).Error(),
-		})
-		return
+		return nil, fmt.Errorf("failed to create server %s: %s", req.ServerName, err)
 	}
 
 	if len(control.Config.DNSZoneID) > 0 {
 		err = control.attachDNSRecordToServer(ctx, r.Server)
 		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-				fmt.Errorf("failed to attach dns record to server %s: %s", serverName, err).Error(),
-			})
-			return
+			return nil, fmt.Errorf("failed to attach dns record to server %s: %s", req.ServerName, err)
 		}
 	}
 
-	ctx.JSON(http.StatusCreated, *r.Server)
+	return r.Server, nil
 }
 
 func (control *Control) TerminateServer(ctx *gin.Context) {
@@ -522,6 +515,22 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 	}
 
 	return nil
+}
+
+func (control *Control) listImages(ctx context.Context) ([]*hcloud.Image, error) {
+	images, _, err := control.hclient.Image.List(ctx, hcloud.ImageListOpts{})
+	if err != nil {
+		return nil, err
+	}
+	var managedImages []*hcloud.Image
+	for _, image := range images {
+		_, ok := image.Labels[LabelManagedBy]
+		if !ok {
+			continue
+		}
+		managedImages = append(managedImages, image)
+	}
+	return managedImages, nil
 }
 
 func (control *Control) attachDNSRecordToServer(ctx context.Context, server *hcloud.Server) error {
