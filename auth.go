@@ -61,7 +61,9 @@ func AuthCallback(ctx *gin.Context) {
 		})
 		return
 	}
-	ctx.SetCookie(WebTokenCookieName, tokenString, int(expiration.Seconds()), "/", "", false, true)
+	if *enableCookieAuth {
+		ctx.SetCookie(WebTokenCookieName, tokenString, int(expiration.Seconds()), "/", "", false, true)
+	}
 	ctx.JSON(http.StatusOK, struct {
 		WebToken string `json:"webToken"`
 	}{
@@ -87,14 +89,20 @@ func (control *Control) Authorize() gin.HandlerFunc {
 		if strings.HasPrefix(authHeader, "Bearer ") {
 			tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
 		} else {
-			authCookie, err := ctx.Request.Cookie(WebTokenCookieName)
-			if err != nil {
+			if *enableCookieAuth {
+				authCookie, err := ctx.Request.Cookie(WebTokenCookieName)
+				if err != nil {
+					ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
+						errors.New("unauthorized: missing auth").Error(),
+					})
+					return
+				}
+				tokenStr = authCookie.Value
+			} else {
 				ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
 					errors.New("unauthorized: missing auth").Error(),
 				})
-				return
 			}
-			tokenStr = authCookie.Value
 		}
 
 		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {

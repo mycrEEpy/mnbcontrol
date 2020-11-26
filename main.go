@@ -19,6 +19,7 @@ var (
 	logReportCaller  = flag.Bool("logReportCaller", true, "log report caller")
 	logFormatterJSON = flag.Bool("logFormatterJson", false, "log formatter json")
 	listenAddr       = flag.String("listenAddr", ":8000", "http server listen address")
+	enableCookieAuth = flag.Bool("enableCookieAuth", false, "set cookie after login")
 	locationName     = flag.String("locationName", "nbg1", "location name")
 	networkIDs       = flag.String("networkIDs", "", "comma separated list of network ids")
 	sshKeyIDs        = flag.String("sshKeyIDs", "", "comma separated list if ssh key ids")
