@@ -196,6 +196,36 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 		if err != nil {
 			log.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
 		}
+	case strings.HasPrefix(m.Content, "!server extend"):
+		contentSplit := strings.Split(m.Content, " ")
+		if len(contentSplit) != 4 {
+			_, err := s.ChannelMessageSend(m.ChannelID, "Sorry, I'm not able to help you.")
+			if err != nil {
+				log.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
+			}
+			return
+		}
+		req := ExtendServerRequest{
+			ServerName: contentSplit[2],
+			TTL:        contentSplit[3],
+		}
+		extendedTTL, err := control.extendServer(context.Background(), req)
+		if err != nil {
+			log.Errorf("failed to extend server for bot: %s", err)
+			_, err := s.ChannelMessageSend(m.ChannelID, "Boom! Something did not work out...")
+			if err != nil {
+				log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
+			}
+			return
+		}
+		_, err = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(
+			"Server %s has been extended until %s",
+			req.ServerName,
+			extendedTTL.Format(time.RFC3339),
+		))
+		if err != nil {
+			log.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
+		}
 	default:
 		_, err := s.ChannelMessageSend(m.ChannelID, "Sorry, I'm not able to help you.")
 		if err != nil {

@@ -58,6 +58,11 @@ type StartServerRequest struct {
 	TTL        string `json:"ttl"`
 }
 
+type ExtendServerRequest struct {
+	ServerName string `json:"serverName"`
+	TTL        string `json:"ttl"`
+}
+
 func NewControl(config *ControlConfig) (*Control, error) {
 	if config == nil {
 		return nil, errors.New("config can not be nil")
@@ -106,6 +111,7 @@ func NewControl(config *ControlConfig) (*Control, error) {
 	apiServer.GET("/", control.ListServers)
 	apiServer.POST("/", control.NewServer)
 	apiServer.POST("/:name/_start", control.StartServer)
+	apiServer.PUT("/:name/_extend", control.ExtendServer)
 	apiServer.DELETE("/:name", control.TerminateServer)
 
 	auth := engine.Group("/auth")
@@ -275,6 +281,9 @@ func (control *Control) newServer(ctx context.Context, req CreateNewServerReques
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ttl duration: %s", err)
 	}
+	if ttlDuration > 12*time.Hour {
+		return nil, errors.New("maximum ttl is 12h")
+	}
 	ttl := time.Now().Add(ttlDuration)
 	r, _, err := control.hclient.Server.Create(ctx, hcloud.ServerCreateOpts{
 		Name:             req.ServerName,
@@ -354,6 +363,9 @@ func (control *Control) startServer(ctx context.Context, req StartServerRequest)
 	ttlDuration, err := time.ParseDuration(req.TTL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ttl duration: %s", err)
+	}
+	if ttlDuration > 12*time.Hour {
+		return nil, errors.New("maximum ttl is 12h")
 	}
 	ttl := time.Now().Add(ttlDuration)
 	r, _, err := control.hclient.Server.Create(ctx, hcloud.ServerCreateOpts{
@@ -531,6 +543,74 @@ func (control *Control) listImages(ctx context.Context) ([]*hcloud.Image, error)
 		managedImages = append(managedImages, image)
 	}
 	return managedImages, nil
+}
+
+func (control *Control) ExtendServer(ctx *gin.Context) {
+	serverName, ok := ctx.Params.Get("name")
+	if !ok {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
+			errors.New("missing name parameter").Error(),
+		})
+		return
+	}
+	var req ExtendServerRequest
+	err := ctx.ShouldBindJSON(&req)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
+			fmt.Errorf("failed to bind request: %s", err).Error(),
+		})
+		return
+	}
+	req.ServerName = serverName
+
+	newTTL, err := control.extendServer(ctx, req)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
+			fmt.Errorf("failed extend server %s: %s", serverName, err).Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, struct {
+		TTL string `json:"ttl"`
+	}{
+		newTTL.Format(time.RFC3339),
+	})
+}
+
+func (control *Control) extendServer(ctx context.Context, req ExtendServerRequest) (*time.Time, error) {
+	extendDuration, err := time.ParseDuration(req.TTL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse new ttl duration: %s", err)
+	}
+
+	server, _, err := control.hclient.Server.Get(ctx, req.ServerName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get server: %s", err)
+	}
+
+	ttlStr, ok := server.Labels[LabelTTL]
+	if !ok {
+		return nil, errors.New("missing ttl label")
+	}
+	ttlInt, err := strconv.Atoi(ttlStr)
+	if !ok {
+		return nil, fmt.Errorf("failed to convert ttl to int: %s", err)
+	}
+	currentTTL := time.Unix(int64(ttlInt), 0)
+	extendedTTL := currentTTL.Add(extendDuration)
+
+	if extendedTTL.Sub(time.Now()) > 12*time.Hour {
+		return nil, errors.New("server cannot be extended beyond 12h from now")
+	}
+
+	server.Labels[LabelTTL] = strconv.Itoa(int(extendedTTL.Unix()))
+	server, _, err = control.hclient.Server.Update(ctx, server, hcloud.ServerUpdateOpts{Labels: server.Labels})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update server: %s", err)
+	}
+
+	return &extendedTTL, nil
 }
 
 func (control *Control) attachDNSRecordToServer(ctx context.Context, server *hcloud.Server) error {
