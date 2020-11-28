@@ -103,7 +103,7 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 			}
 			msg.Fields = append(msg.Fields, &discordgo.MessageEmbedField{
 				Name:   image.Labels[LabelService],
-				Value:  "Status: hibernated",
+				Value:  "Status: terminated",
 				Inline: true,
 			})
 		}
@@ -222,6 +222,39 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 			"Server %s has been extended until %s",
 			req.ServerName,
 			extendedTTL.Format(time.RFC3339),
+		))
+		if err != nil {
+			log.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
+		}
+	case strings.HasPrefix(m.Content, "!server terminate"):
+		contentSplit := strings.Split(m.Content, " ")
+		if len(contentSplit) != 3 {
+			_, err := s.ChannelMessageSend(m.ChannelID, "Sorry, I'm not able to help you.")
+			if err != nil {
+				log.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
+			}
+			return
+		}
+		_, err = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(
+			"Server %s will be terminated, this might take a while",
+			contentSplit[2],
+		))
+		if err != nil {
+			log.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
+			return
+		}
+		err = control.terminateServer(context.Background(), contentSplit[2])
+		if err != nil {
+			log.Errorf("failed to terminate server for bot: %s", err)
+			_, err := s.ChannelMessageSend(m.ChannelID, "Boom! Something did not work out...")
+			if err != nil {
+				log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
+			}
+			return
+		}
+		_, err = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(
+			"Server %s has been terminated",
+			contentSplit[2],
 		))
 		if err != nil {
 			log.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)

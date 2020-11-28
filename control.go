@@ -419,6 +419,13 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 	if err != nil {
 		return fmt.Errorf("failed to get server %s by name: %s", serverName, err)
 	}
+	if server == nil {
+		return errors.New("server does not exist")
+	}
+
+	if server.Labels[LabelManagedBy] != LabelValueMangedByControl {
+		return errors.New("server is not managed by mnbcontrol")
+	}
 
 	shutdownAction, _, err := control.hclient.Server.Shutdown(ctx, server)
 	if err != nil {
