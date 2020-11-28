@@ -23,16 +23,19 @@ required environment variables and pass some flags.
 
 ### Flags
 
-| Flag             | Type   | Default                                              | Description
-| ---              | ---    | ---                                                  | ---
-| logLevel         | int    | 4                                                    | log level (0-6)
-| logReportCaller  | bool   | true                                                 | log report caller
-| logFormatterJson | bool   | false                                                | log formatter json
-| listenAddr       | string | :8000                                                | http server listen address
-| locationName     | string | nbg1                                                 | Hetzner location name
-| networkIDs       | string |                                                      | comma separated list of network ids
-| sshKeyIDs        | string |                                                      | comma separated list if ssh key ids
-| dnsZoneID        | string |                                                      | dns zone id, can be empty for disabling dns support
-| discordCallback  | string | http://localhost:8000/auth/callback?provider=discord | discord oauth callback url
-| discordGuildID   | string |                                                      | discord guild id for authorization
-| discordRoleID    | string |                                                      | discord role id for authorization
+| Flag               | Type   | Default                                              | Description
+| ---                | ---    | ---                                                  | ---
+| logLevel           | int    | 4                                                    | log level (0-6)
+| logReportCaller    | bool   | true                                                 | log report caller
+| logFormatterJson   | bool   | false                                                | log formatter json
+| listenAddr         | string | :8000                                                | http server listen address
+| enableCookieAuth   | bool   | false                                                | set cookie after login
+| locationName       | string | nbg1                                                 | Hetzner location name
+| networkIDs         | string |                                                      | comma separated list of network ids
+| sshKeyIDs          | string |                                                      | comma separated list if ssh key ids
+| dnsZoneID          | string |                                                      | dns zone id, can be empty for disabling dns support
+| discordCallback    | string | http://localhost:8000/auth/callback?provider=discord | discord oauth callback url
+| discordGuildID     | string |                                                      | discord guild id for authorization
+| discordChannelID   | string |                                                      | discord channel id for user interaction
+| discordAdminRoleID | string |                                                      | discord role id for admin authorization
+| discordUserRoleID  | string |                                                      | discord role id for user authorization

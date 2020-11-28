@@ -15,6 +15,15 @@ const (
 	listServerTemplate = "Status: %s\nType: %v\nDNS: %s\nIPv4: %s\nTTL: %s\n"
 )
 
+func isPrivateChannel(state *discordgo.State, channelID string) bool {
+	for _, privateChannel := range state.PrivateChannels {
+		if privateChannel.ID == channelID {
+			return true
+		}
+	}
+	return false
+}
+
 func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// don't talk to yourself :)
 	if m.Author.ID == s.State.User.ID {
@@ -30,16 +39,18 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 		return
 	}
 
-	if !memberHasRole(member, *discordRoleID) {
-		_, err := s.ChannelMessageSend(m.ChannelID, "You are not allowed to talk to me!")
-		if err != nil {
-			log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
-		}
-		return
-	}
-
 	switch {
 	case m.Content == "!server list":
+		if m.ChannelID != *discordChannelID && !isPrivateChannel(s.State, m.ChannelID) {
+			return
+		}
+		if !memberHasRole(member, *discordUserRoleID) && !memberHasRole(member, *discordAdminRoleID) {
+			_, err := s.ChannelMessageSend(m.ChannelID, "You are not allowed to talk to me!")
+			if err != nil {
+				log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
+			}
+			return
+		}
 		managedServers, err := control.listServers(context.Background())
 		if err != nil {
 			log.Errorf("failed to list server for bot: %s", err)
@@ -113,6 +124,16 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 			return
 		}
 	case strings.HasPrefix(m.Content, "!server start"):
+		if !isPrivateChannel(s.State, m.ChannelID) {
+			return
+		}
+		if !memberHasRole(member, *discordAdminRoleID) {
+			_, err := s.ChannelMessageSend(m.ChannelID, "You are not allowed to talk to me!")
+			if err != nil {
+				log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
+			}
+			return
+		}
 		var req StartServerRequest
 		contentSplit := strings.Split(m.Content, " ")
 		switch len(contentSplit) {
@@ -155,6 +176,16 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 			log.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
 		}
 	case strings.HasPrefix(m.Content, "!server new"):
+		if !isPrivateChannel(s.State, m.ChannelID) {
+			return
+		}
+		if !memberHasRole(member, *discordAdminRoleID) {
+			_, err := s.ChannelMessageSend(m.ChannelID, "You are not allowed to talk to me!")
+			if err != nil {
+				log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
+			}
+			return
+		}
 		var req CreateNewServerRequest
 		contentSplit := strings.Split(m.Content, " ")
 		switch len(contentSplit) {
@@ -197,6 +228,16 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 			log.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
 		}
 	case strings.HasPrefix(m.Content, "!server extend"):
+		if !isPrivateChannel(s.State, m.ChannelID) {
+			return
+		}
+		if !memberHasRole(member, *discordAdminRoleID) {
+			_, err := s.ChannelMessageSend(m.ChannelID, "You are not allowed to talk to me!")
+			if err != nil {
+				log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
+			}
+			return
+		}
 		contentSplit := strings.Split(m.Content, " ")
 		if len(contentSplit) != 4 {
 			_, err := s.ChannelMessageSend(m.ChannelID, "Sorry, I'm not able to help you.")
@@ -227,6 +268,16 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 			log.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
 		}
 	case strings.HasPrefix(m.Content, "!server terminate"):
+		if !isPrivateChannel(s.State, m.ChannelID) {
+			return
+		}
+		if !memberHasRole(member, *discordAdminRoleID) {
+			_, err := s.ChannelMessageSend(m.ChannelID, "You are not allowed to talk to me!")
+			if err != nil {
+				log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
+			}
+			return
+		}
 		contentSplit := strings.Split(m.Content, " ")
 		if len(contentSplit) != 3 {
 			_, err := s.ChannelMessageSend(m.ChannelID, "Sorry, I'm not able to help you.")
@@ -260,6 +311,16 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 			log.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
 		}
 	default:
+		if !isPrivateChannel(s.State, m.ChannelID) {
+			return
+		}
+		if !memberHasRole(member, *discordUserRoleID) && !memberHasRole(member, *discordAdminRoleID) {
+			_, err := s.ChannelMessageSend(m.ChannelID, "You are not allowed to talk to me!")
+			if err != nil {
+				log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
+			}
+			return
+		}
 		_, err := s.ChannelMessageSend(m.ChannelID, "Sorry, I'm not able to help you.")
 		if err != nil {
 			log.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)

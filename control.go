@@ -81,7 +81,7 @@ func NewControl(config *ControlConfig) (*Control, error) {
 		return nil, fmt.Errorf("failed to create discord session: %s", err)
 	}
 	control.discordSession.AddHandler(control.handleDiscordMessage)
-	control.discordSession.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsDirectMessages)
+	control.discordSession.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsDirectMessages | discordgo.IntentsGuildMessages)
 
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()

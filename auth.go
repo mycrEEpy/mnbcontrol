@@ -157,7 +157,7 @@ func (control *Control) Authorize() gin.HandlerFunc {
 			})
 			return
 		}
-		if !memberHasRole(member, *discordRoleID) {
+		if !memberHasRole(member, *discordAdminRoleID) {
 			ctx.AbortWithStatusJSON(http.StatusForbidden, APIError{
 				fmt.Errorf("forbidden: permission check failed: %s", err).Error(),
 			})
