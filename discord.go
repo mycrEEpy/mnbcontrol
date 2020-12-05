@@ -16,6 +16,11 @@ const (
 	listServerTemplate = "Status: %s\nType: %v\nDNS: %s\nIPv4: %s\nTTL: %s\n"
 )
 
+var (
+	ErrUnauthorized     = errors.New("unauthorized")
+	ErrIllegalArguments = errors.New("illegal arguments")
+)
+
 func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// don't talk to yourself :)
 	if m.Author.ID == s.State.User.ID {
@@ -74,7 +79,7 @@ func (control *Control) handleListServerCommand(member *discordgo.Member, s *dis
 		return nil
 	}
 	if !memberHasRole(member, *discordUserRoleID) && !memberHasRole(member, *discordAdminRoleID) {
-		return errors.New("unauthorized")
+		return ErrUnauthorized
 	}
 	managedServers, err := control.listServers(context.Background())
 	if err != nil {
@@ -144,7 +149,7 @@ func (control *Control) handleServerStartCommand(member *discordgo.Member, s *di
 		return nil
 	}
 	if !memberHasRole(member, *discordAdminRoleID) {
-		return errors.New("unauthorized")
+		return ErrUnauthorized
 	}
 	var req StartServerRequest
 	contentSplit := strings.Split(m.Content, " ")
@@ -162,7 +167,7 @@ func (control *Control) handleServerStartCommand(member *discordgo.Member, s *di
 		req.ServerType = contentSplit[3]
 		req.TTL = contentSplit[4]
 	default:
-		return errors.New("illegal arguments")
+		return ErrIllegalArguments
 	}
 	server, err := control.startServer(context.Background(), req)
 	if err != nil {
@@ -186,7 +191,7 @@ func (control *Control) handleServerNewCommand(member *discordgo.Member, s *disc
 		return nil
 	}
 	if !memberHasRole(member, *discordAdminRoleID) {
-		return errors.New("unauthorized")
+		return ErrUnauthorized
 	}
 	var req CreateNewServerRequest
 	contentSplit := strings.Split(m.Content, " ")
@@ -204,7 +209,7 @@ func (control *Control) handleServerNewCommand(member *discordgo.Member, s *disc
 		req.ServerType = contentSplit[3]
 		req.TTL = contentSplit[4]
 	default:
-		return errors.New("illegal arguments")
+		return ErrIllegalArguments
 	}
 	server, err := control.newServer(context.Background(), req)
 	if err != nil {
@@ -228,11 +233,11 @@ func (control *Control) handleServerExtendCommand(member *discordgo.Member, s *d
 		return nil
 	}
 	if !memberHasRole(member, *discordAdminRoleID) {
-		return errors.New("unauthorized")
+		return ErrUnauthorized
 	}
 	contentSplit := strings.Split(m.Content, " ")
 	if len(contentSplit) != 4 {
-		return errors.New("illegal arguments")
+		return ErrIllegalArguments
 	}
 	req := ExtendServerRequest{
 		ServerName: contentSplit[2],
@@ -258,11 +263,11 @@ func (control *Control) handleServerTerminateCommand(member *discordgo.Member, s
 		return nil
 	}
 	if !memberHasRole(member, *discordAdminRoleID) {
-		return errors.New("unauthorized")
+		return ErrUnauthorized
 	}
 	contentSplit := strings.Split(m.Content, " ")
 	if len(contentSplit) != 3 {
-		return errors.New("illegal arguments")
+		return ErrIllegalArguments
 	}
 	_, err := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(
 		"Server %s will be terminated, this might take a while",
