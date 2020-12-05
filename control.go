@@ -92,6 +92,7 @@ func NewControl(config *ControlConfig) (*Control, error) {
 	apiServer.POST("/", control.NewServer)
 	apiServer.POST("/:name/_start", control.StartServer)
 	apiServer.PUT("/:name/_extend", control.ExtendServer)
+	apiServer.PUT("/:name/_type", control.ChangeServerType)
 	apiServer.DELETE("/:name", control.TerminateServer)
 
 	auth := engine.Group("/auth")
@@ -186,7 +187,8 @@ func (control *Control) waitForShutdown(shutdownChan <-chan os.Signal, quitChan 
 	if err != nil {
 		log.Errorf("failed to close discord session: %s", err)
 	}
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	err = control.api.Shutdown(ctx)
 	if err != nil {
 		log.Errorf("failed to shutdown api server: %s", err)
@@ -489,6 +491,46 @@ func (control *Control) extendServer(ctx context.Context, req ExtendServerReques
 	}
 
 	return &extendedTTL, nil
+}
+
+func (control *Control) changeServerType(ctx context.Context, req ChangeServerTypeRequest) error {
+	server, _, err := control.hclient.Server.Get(ctx, req.ServerName)
+	if err != nil {
+		return fmt.Errorf("failed to get server %s by name: %s", req.ServerName, err)
+	}
+	if server != nil {
+		return errors.New("can't change type when server is online")
+	}
+
+	images, err := control.listImages(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list images: %s", err)
+	}
+	var serverImage *hcloud.Image
+	for _, image := range images {
+		if image.Labels[LabelService] == req.ServerName {
+			serverImage = image
+			break
+		}
+	}
+	if serverImage == nil {
+		return fmt.Errorf("image for server %s not found", req.ServerName)
+	}
+
+	serverType, _, err := control.hclient.ServerType.GetByName(ctx, req.ServerType)
+	if err != nil {
+		return fmt.Errorf("failed to get server type: %s", err)
+	}
+	if serverType == nil {
+		return fmt.Errorf("server type %s is invalid", req.ServerType)
+	}
+
+	serverImage.Labels[LabelServerType] = req.ServerType
+	_, _, err = control.hclient.Image.Update(ctx, serverImage, hcloud.ImageUpdateOpts{Labels: serverImage.Labels})
+	if err != nil {
+		return fmt.Errorf("failed to update image for server %s: %s", req.ServerName, err)
+	}
+	return nil
 }
 
 func (control *Control) attachDNSRecordToServer(ctx context.Context, server *hcloud.Server) error {

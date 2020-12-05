@@ -29,6 +29,11 @@ type ExtendServerRequest struct {
 	TTL        string `json:"ttl"`
 }
 
+type ChangeServerTypeRequest struct {
+	ServerName string `json:"serverName"`
+	ServerType string `json:"serverType"`
+}
+
 func (control *Control) ListServers(ctx *gin.Context) {
 	managedServers, err := control.listServers(ctx)
 	if err != nil {
@@ -137,4 +142,33 @@ func (control *Control) ExtendServer(ctx *gin.Context) {
 	}{
 		newTTL.Format(time.RFC3339),
 	})
+}
+
+func (control *Control) ChangeServerType(ctx *gin.Context) {
+	serverName, ok := ctx.Params.Get("name")
+	if !ok {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
+			errors.New("missing name parameter").Error(),
+		})
+		return
+	}
+	var req ChangeServerTypeRequest
+	err := ctx.ShouldBindJSON(&req)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
+			fmt.Errorf("failed to bind request: %s", err).Error(),
+		})
+		return
+	}
+	req.ServerName = serverName
+
+	err = control.changeServerType(ctx, req)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
+			fmt.Errorf("failed extend server %s: %s", serverName, err).Error(),
+		})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
 }

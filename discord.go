@@ -46,8 +46,10 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 		err = control.handleNewServerCommand(member, s, m.Message)
 	case strings.HasPrefix(m.Content, "!server extend"):
 		err = control.handleExtendServerCommand(member, s, m.Message)
-	case strings.HasPrefix(m.Content, "!server terminate"):
+	case strings.HasPrefix(m.Content, "!server stop"):
 		err = control.handleTerminateServerCommand(member, s, m.Message)
+	case strings.HasPrefix(m.Content, "!server type"):
+		err = control.handleChangeServerTypeCommand(member, s, m.Message)
 	default:
 		if !isPrivateChannel(s.State, m.ChannelID) {
 			return
@@ -285,6 +287,36 @@ func (control *Control) handleTerminateServerCommand(member *discordgo.Member, s
 	_, err = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(
 		"Server %s has been terminated",
 		contentSplit[2],
+	))
+	if err != nil {
+		return fmt.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
+	}
+	return nil
+}
+
+func (control *Control) handleChangeServerTypeCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
+	if !isPrivateChannel(s.State, m.ChannelID) {
+		return nil
+	}
+	if !memberHasRole(member, *discordAdminRoleID) {
+		return ErrUnauthorized
+	}
+	contentSplit := strings.Split(m.Content, " ")
+	if len(contentSplit) != 4 {
+		return ErrIllegalArguments
+	}
+	req := ChangeServerTypeRequest{
+		ServerName: contentSplit[2],
+		ServerType: contentSplit[3],
+	}
+	err := control.changeServerType(context.Background(), req)
+	if err != nil {
+		return fmt.Errorf("failed to change server type for bot: %s", err)
+	}
+	_, err = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(
+		"Server %s is now of type %s",
+		req.ServerName,
+		req.ServerType,
 	))
 	if err != nil {
 		return fmt.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
