@@ -25,6 +25,7 @@ const (
 	LabelTTL                  = "mnbr.eu/ttl"
 	LabelActiveBlueprint      = "mnbr.eu/active-blueprint"
 	LabelDNSRecordID          = "mnbr.eu/dns-record-id"
+	LabelServerType           = "mnbr.eu/server-type"
 )
 
 type Control struct {
@@ -290,7 +291,7 @@ func (control *Control) startServer(ctx context.Context, req StartServerRequest)
 	ttl := time.Now().Add(ttlDuration)
 	r, _, err := control.hclient.Server.Create(ctx, hcloud.ServerCreateOpts{
 		Name:             req.ServerName,
-		ServerType:       &hcloud.ServerType{Name: req.ServerType},
+		ServerType:       &hcloud.ServerType{Name: latestServiceImage.Labels[LabelServerType]},
 		Image:            latestServiceImage,
 		Location:         control.Config.Location,
 		StartAfterCreate: hcloud.Bool(true),
@@ -358,8 +359,9 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 		Type:        hcloud.ImageTypeSnapshot,
 		Description: hcloud.String(fmt.Sprintf("%s/%s", serverName, time.Now().Format(time.RFC3339))),
 		Labels: map[string]string{
-			LabelManagedBy: LabelValueMangedByControl,
-			LabelService:   serverName,
+			LabelManagedBy:  LabelValueMangedByControl,
+			LabelService:    serverName,
+			LabelServerType: server.ServerType.Name,
 		},
 	})
 	if err != nil {

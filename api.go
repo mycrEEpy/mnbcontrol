@@ -21,7 +21,6 @@ type CreateNewServerRequest struct {
 
 type StartServerRequest struct {
 	ServerName string `json:"serverName"`
-	ServerType string `json:"serverType"`
 	TTL        string `json:"ttl"`
 }
 

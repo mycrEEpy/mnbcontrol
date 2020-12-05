@@ -154,17 +154,14 @@ func (control *Control) handleServerStartCommand(member *discordgo.Member, s *di
 	var req StartServerRequest
 	contentSplit := strings.Split(m.Content, " ")
 	switch len(contentSplit) {
+	case 2:
+		req.ServerName = contentSplit[2]
+		req.TTL = "12h"
 	case 3:
 		req.ServerName = contentSplit[2]
-		req.ServerType = "cx11"
 		req.TTL = "12h"
 	case 4:
 		req.ServerName = contentSplit[2]
-		req.ServerType = contentSplit[3]
-		req.TTL = "12h"
-	case 5:
-		req.ServerName = contentSplit[2]
-		req.ServerType = contentSplit[3]
 		req.TTL = contentSplit[4]
 	default:
 		return ErrIllegalArguments
