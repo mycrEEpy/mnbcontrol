@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	listServerTemplate = "Status: %s\nType: %v\nDNS: %s\nIPv4: %s\nTTL: %s\n"
+	listOnlineServerTemplate  = "Status: %s\nType: %v\nDNS: %s\nIPv4: %s\nTTL: %s\n"
+	listOfflineServerTemplate = "Status: %s\nType: %v\n"
 )
 
 var (
@@ -117,7 +118,7 @@ func (control *Control) handleListServerCommand(member *discordgo.Member, s *dis
 		msg.Fields = append(msg.Fields, &discordgo.MessageEmbedField{
 			Name: server.Labels[LabelService],
 			Value: fmt.Sprintf(
-				listServerTemplate,
+				listOnlineServerTemplate,
 				server.Status,
 				server.ServerType.Name,
 				server.PublicNet.IPv4.DNSPtr,
@@ -132,8 +133,12 @@ func (control *Control) handleListServerCommand(member *discordgo.Member, s *dis
 			continue
 		}
 		msg.Fields = append(msg.Fields, &discordgo.MessageEmbedField{
-			Name:   image.Labels[LabelService],
-			Value:  "Status: terminated",
+			Name: image.Labels[LabelService],
+			Value: fmt.Sprintf(
+				listOfflineServerTemplate,
+				"terminated",
+				image.Labels[LabelServerType],
+			),
 			Inline: true,
 		})
 	}
