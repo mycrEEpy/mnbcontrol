@@ -162,7 +162,7 @@ func (control *Control) handleServerStartCommand(member *discordgo.Member, s *di
 		req.TTL = "12h"
 	case 4:
 		req.ServerName = contentSplit[2]
-		req.TTL = contentSplit[4]
+		req.TTL = contentSplit[3]
 	default:
 		return ErrIllegalArguments
 	}
