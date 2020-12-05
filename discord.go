@@ -40,13 +40,13 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 	case m.Content == "!server list":
 		err = control.handleListServerCommand(member, s, m.Message)
 	case strings.HasPrefix(m.Content, "!server start"):
-		err = control.handleServerStartCommand(member, s, m.Message)
+		err = control.handleStartServerCommand(member, s, m.Message)
 	case strings.HasPrefix(m.Content, "!server new"):
-		err = control.handleServerNewCommand(member, s, m.Message)
+		err = control.handleNewServerCommand(member, s, m.Message)
 	case strings.HasPrefix(m.Content, "!server extend"):
-		err = control.handleServerExtendCommand(member, s, m.Message)
+		err = control.handleExtendServerCommand(member, s, m.Message)
 	case strings.HasPrefix(m.Content, "!server terminate"):
-		err = control.handleServerTerminateCommand(member, s, m.Message)
+		err = control.handleTerminateServerCommand(member, s, m.Message)
 	default:
 		if !isPrivateChannel(s.State, m.ChannelID) {
 			return
@@ -144,7 +144,7 @@ func (control *Control) handleListServerCommand(member *discordgo.Member, s *dis
 	return nil
 }
 
-func (control *Control) handleServerStartCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
+func (control *Control) handleStartServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
 	if !isPrivateChannel(s.State, m.ChannelID) {
 		return nil
 	}
@@ -183,7 +183,7 @@ func (control *Control) handleServerStartCommand(member *discordgo.Member, s *di
 	return nil
 }
 
-func (control *Control) handleServerNewCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
+func (control *Control) handleNewServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
 	if !isPrivateChannel(s.State, m.ChannelID) {
 		return nil
 	}
@@ -225,7 +225,7 @@ func (control *Control) handleServerNewCommand(member *discordgo.Member, s *disc
 	return nil
 }
 
-func (control *Control) handleServerExtendCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
+func (control *Control) handleExtendServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
 	if !isPrivateChannel(s.State, m.ChannelID) {
 		return nil
 	}
@@ -255,7 +255,7 @@ func (control *Control) handleServerExtendCommand(member *discordgo.Member, s *d
 	return nil
 }
 
-func (control *Control) handleServerTerminateCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
+func (control *Control) handleTerminateServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
 	if !isPrivateChannel(s.State, m.ChannelID) {
 		return nil
 	}
