@@ -42,27 +42,6 @@ type ControlConfig struct {
 	DNSZoneID  string
 }
 
-type APIError struct {
-	Error string `json:"error"`
-}
-
-type CreateNewServerRequest struct {
-	ServerName string `json:"serverName"`
-	ServerType string `json:"serverType"`
-	TTL        string `json:"ttl"`
-}
-
-type StartServerRequest struct {
-	ServerName string `json:"serverName"`
-	ServerType string `json:"serverType"`
-	TTL        string `json:"ttl"`
-}
-
-type ExtendServerRequest struct {
-	ServerName string `json:"serverName"`
-	TTL        string `json:"ttl"`
-}
-
 func NewControl(config *ControlConfig) (*Control, error) {
 	if config == nil {
 		return nil, errors.New("config can not be nil")
@@ -215,17 +194,6 @@ func (control *Control) waitForShutdown(shutdownChan <-chan os.Signal, quitChan 
 	shutdownWG.Done()
 }
 
-func (control *Control) ListServers(ctx *gin.Context) {
-	managedServers, err := control.listServers(ctx)
-	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			err.Error(),
-		})
-		return
-	}
-	ctx.JSON(http.StatusOK, managedServers)
-}
-
 func (control *Control) listServers(ctx context.Context) ([]*hcloud.Server, error) {
 	servers, _, err := control.hclient.Server.List(ctx, hcloud.ServerListOpts{})
 	if err != nil {
@@ -238,27 +206,6 @@ func (control *Control) listServers(ctx context.Context) ([]*hcloud.Server, erro
 		}
 	}
 	return managedServers, nil
-}
-
-func (control *Control) NewServer(ctx *gin.Context) {
-	var req CreateNewServerRequest
-	err := ctx.ShouldBindJSON(&req)
-	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			fmt.Errorf("failed to bind request: %s", err).Error(),
-		})
-		return
-	}
-
-	server, err := control.newServer(ctx, req)
-	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			fmt.Errorf("failed to create new server: %s", err).Error(),
-		})
-		return
-	}
-
-	ctx.JSON(http.StatusCreated, server)
 }
 
 func (control *Control) newServer(ctx context.Context, req CreateNewServerRequest) (*hcloud.Server, error) {
@@ -309,33 +256,6 @@ func (control *Control) newServer(ctx context.Context, req CreateNewServerReques
 	}
 
 	return r.Server, nil
-}
-
-func (control *Control) StartServer(ctx *gin.Context) {
-	serverName, ok := ctx.Params.Get("name")
-	if !ok {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			errors.New("missing name parameter").Error(),
-		})
-		return
-	}
-	var req StartServerRequest
-	err := ctx.ShouldBindJSON(&req)
-	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			fmt.Errorf("failed to bind request: %s", err).Error(),
-		})
-		return
-	}
-	req.ServerName = serverName
-	server, err := control.startServer(ctx, req)
-	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			fmt.Errorf("failed to start server: %s", err).Error(),
-		})
-		return
-	}
-	ctx.JSON(http.StatusCreated, server)
 }
 
 func (control *Control) startServer(ctx context.Context, req StartServerRequest) (*hcloud.Server, error) {
@@ -394,24 +314,6 @@ func (control *Control) startServer(ctx context.Context, req StartServerRequest)
 	}
 
 	return r.Server, nil
-}
-
-func (control *Control) TerminateServer(ctx *gin.Context) {
-	serverName, ok := ctx.Params.Get("name")
-	if !ok {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			errors.New("missing name parameter").Error(),
-		})
-		return
-	}
-	err := control.terminateServer(ctx, serverName)
-	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			err.Error(),
-		})
-		return
-	}
-	ctx.Status(http.StatusOK)
 }
 
 func (control *Control) terminateServer(ctx context.Context, serverName string) error {
@@ -550,39 +452,6 @@ func (control *Control) listImages(ctx context.Context) ([]*hcloud.Image, error)
 		managedImages = append(managedImages, image)
 	}
 	return managedImages, nil
-}
-
-func (control *Control) ExtendServer(ctx *gin.Context) {
-	serverName, ok := ctx.Params.Get("name")
-	if !ok {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			errors.New("missing name parameter").Error(),
-		})
-		return
-	}
-	var req ExtendServerRequest
-	err := ctx.ShouldBindJSON(&req)
-	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-			fmt.Errorf("failed to bind request: %s", err).Error(),
-		})
-		return
-	}
-	req.ServerName = serverName
-
-	newTTL, err := control.extendServer(ctx, req)
-	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
-			fmt.Errorf("failed extend server %s: %s", serverName, err).Error(),
-		})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, struct {
-		TTL string `json:"ttl"`
-	}{
-		newTTL.Format(time.RFC3339),
-	})
 }
 
 func (control *Control) extendServer(ctx context.Context, req ExtendServerRequest) (*time.Time, error) {
