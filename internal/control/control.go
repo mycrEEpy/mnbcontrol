@@ -1,4 +1,4 @@
-package main
+package control
 
 import (
 	"context"
@@ -29,21 +29,25 @@ const (
 )
 
 type Control struct {
-	Config         *ControlConfig
+	Config         *Config
 	api            *http.Server
 	hclient        *hcloud.Client
 	discordSession *discordgo.Session
 }
 
-type ControlConfig struct {
-	ListenAddr string
-	Location   *hcloud.Location
-	Networks   []*hcloud.Network
-	SSHKeys    []*hcloud.SSHKey
-	DNSZoneID  string
+type Config struct {
+	ListenAddr         string
+	Location           *hcloud.Location
+	Networks           []*hcloud.Network
+	SSHKeys            []*hcloud.SSHKey
+	DNSZoneID          string
+	DiscordGuildID     string
+	DiscordChannelID   string
+	DiscordAdminRoleID string
+	DiscordUserRoleID  string
 }
 
-func NewControl(config *ControlConfig) (*Control, error) {
+func New(config *Config) (*Control, error) {
 	if config == nil {
 		return nil, errors.New("config can not be nil")
 	}

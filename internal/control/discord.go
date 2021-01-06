@@ -1,4 +1,4 @@
-package main
+package control
 
 import (
 	"context"
@@ -27,7 +27,7 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 		return
 	}
 
-	member, err := s.GuildMember(*discordGuildID, m.Author.ID)
+	member, err := s.GuildMember(control.Config.DiscordGuildID, m.Author.ID)
 	if err != nil {
 		_, err := s.ChannelMessageSend(m.ChannelID, "You are not allowed to talk to me!")
 		if err != nil {
@@ -53,7 +53,7 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 		if !isPrivateChannel(s.State, m.ChannelID) {
 			return
 		}
-		if !memberHasRole(member, *discordUserRoleID) && !memberHasRole(member, *discordAdminRoleID) {
+		if !memberHasRole(member, control.Config.DiscordUserRoleID) && !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 			_, err := s.ChannelMessageSend(m.ChannelID, "You are not allowed to talk to me!")
 			if err != nil {
 				log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
@@ -77,10 +77,10 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 }
 
 func (control *Control) handleListServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
-	if m.ChannelID != *discordChannelID && !isPrivateChannel(s.State, m.ChannelID) {
+	if m.ChannelID != control.Config.DiscordChannelID && !isPrivateChannel(s.State, m.ChannelID) {
 		return nil
 	}
-	if !memberHasRole(member, *discordUserRoleID) && !memberHasRole(member, *discordAdminRoleID) {
+	if !memberHasRole(member, control.Config.DiscordUserRoleID) && !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 		return ErrUnauthorized
 	}
 	managedServers, err := control.listServers(context.Background())
@@ -157,7 +157,7 @@ func (control *Control) handleStartServerCommand(member *discordgo.Member, s *di
 	if !isPrivateChannel(s.State, m.ChannelID) {
 		return nil
 	}
-	if !memberHasRole(member, *discordAdminRoleID) {
+	if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 		return ErrUnauthorized
 	}
 	var req StartServerRequest
@@ -196,7 +196,7 @@ func (control *Control) handleNewServerCommand(member *discordgo.Member, s *disc
 	if !isPrivateChannel(s.State, m.ChannelID) {
 		return nil
 	}
-	if !memberHasRole(member, *discordAdminRoleID) {
+	if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 		return ErrUnauthorized
 	}
 	var req CreateNewServerRequest
@@ -238,7 +238,7 @@ func (control *Control) handleExtendServerCommand(member *discordgo.Member, s *d
 	if !isPrivateChannel(s.State, m.ChannelID) {
 		return nil
 	}
-	if !memberHasRole(member, *discordAdminRoleID) {
+	if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 		return ErrUnauthorized
 	}
 	contentSplit := strings.Split(m.Content, " ")
@@ -268,7 +268,7 @@ func (control *Control) handleTerminateServerCommand(member *discordgo.Member, s
 	if !isPrivateChannel(s.State, m.ChannelID) {
 		return nil
 	}
-	if !memberHasRole(member, *discordAdminRoleID) {
+	if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 		return ErrUnauthorized
 	}
 	contentSplit := strings.Split(m.Content, " ")
@@ -300,7 +300,7 @@ func (control *Control) handleChangeServerTypeCommand(member *discordgo.Member, 
 	if !isPrivateChannel(s.State, m.ChannelID) {
 		return nil
 	}
-	if !memberHasRole(member, *discordAdminRoleID) {
+	if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 		return ErrUnauthorized
 	}
 	contentSplit := strings.Split(m.Content, " ")

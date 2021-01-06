@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/hetznercloud/hcloud-go/hcloud"
+	"github.com/mycreepy/mnbcontrol/internal/control"
 	"github.com/sirupsen/logrus"
 )
 
@@ -41,7 +42,7 @@ func init() {
 	}
 	log.SetOutput(logrus.StandardLogger().Out)
 
-	AuthSetup(*discordCallback)
+	control.AuthSetup(*discordCallback, *enableCookieAuth)
 }
 
 func main() {
@@ -69,18 +70,22 @@ func main() {
 		}
 	}
 
-	control, err := NewControl(&ControlConfig{
-		ListenAddr: *listenAddr,
-		Location:   &hcloud.Location{Name: *locationName},
-		Networks:   networks,
-		SSHKeys:    sshKeys,
-		DNSZoneID:  *dnsZoneID,
+	ctrl, err := control.New(&control.Config{
+		ListenAddr:         *listenAddr,
+		Location:           &hcloud.Location{Name: *locationName},
+		Networks:           networks,
+		SSHKeys:            sshKeys,
+		DNSZoneID:          *dnsZoneID,
+		DiscordGuildID:     *discordGuildID,
+		DiscordChannelID:   *discordChannelID,
+		DiscordAdminRoleID: *discordAdminRoleID,
+		DiscordUserRoleID:  *discordUserRoleID,
 	})
 	if err != nil {
 		logrus.Fatalf("failed to create control: %w", err)
 	}
 
-	err = control.Run()
+	err = ctrl.Run()
 	if err != nil {
 		logrus.Fatalf("control api failed: %s", err)
 	}

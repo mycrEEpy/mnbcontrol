@@ -1,4 +1,4 @@
-package main
+package control
 
 import (
 	"errors"
@@ -19,7 +19,11 @@ const (
 	WebTokenCookieName = "mnbcontrol_webtoken"
 )
 
-func AuthSetup(callbackURL string) {
+var (
+	cookieAuthEnabled bool
+)
+
+func AuthSetup(callbackURL string, enableCookieAuth bool) {
 	goth.UseProviders(
 		discord.New(
 			os.Getenv("DISCORD_KEY"),
@@ -28,6 +32,7 @@ func AuthSetup(callbackURL string) {
 			discord.ScopeIdentify,
 		),
 	)
+	cookieAuthEnabled = enableCookieAuth
 }
 
 func AuthLogin(ctx *gin.Context) {
@@ -61,7 +66,7 @@ func AuthCallback(ctx *gin.Context) {
 		})
 		return
 	}
-	if *enableCookieAuth {
+	if cookieAuthEnabled {
 		ctx.SetCookie(WebTokenCookieName, tokenString, int(expiration.Seconds()), "/", "", false, true)
 	}
 	ctx.JSON(http.StatusOK, struct {
@@ -89,7 +94,7 @@ func (control *Control) Authorize() gin.HandlerFunc {
 		if strings.HasPrefix(authHeader, "Bearer ") {
 			tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
 		} else {
-			if *enableCookieAuth {
+			if cookieAuthEnabled {
 				authCookie, err := ctx.Request.Cookie(WebTokenCookieName)
 				if err != nil {
 					ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
@@ -150,14 +155,14 @@ func (control *Control) Authorize() gin.HandlerFunc {
 			return
 		}
 
-		member, err := control.discordSession.GuildMember(*discordGuildID, fmt.Sprint(claims["userID"]))
+		member, err := control.discordSession.GuildMember(control.Config.DiscordGuildID, fmt.Sprint(claims["userID"]))
 		if err != nil {
 			ctx.AbortWithStatusJSON(http.StatusForbidden, APIError{
 				fmt.Errorf("forbidden: no guild membership: %s", err).Error(),
 			})
 			return
 		}
-		if !memberHasRole(member, *discordAdminRoleID) {
+		if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 			ctx.AbortWithStatusJSON(http.StatusForbidden, APIError{
 				fmt.Errorf("forbidden: permission check failed: %s", err).Error(),
 			})

@@ -1,6 +1,6 @@
 # Midnight Brawlers Control
 
-`mnbcontrol` is the API & Daemon powering theMidnight Brawlers
+`mnbcontrol` is the API & Daemon powering the Midnight Brawlers
 server landscape.
 
 ## Configuration
