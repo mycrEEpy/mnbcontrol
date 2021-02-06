@@ -3,7 +3,7 @@ module github.com/mycreepy/mnbcontrol
 go 1.15
 
 require (
-	github.com/bwmarrin/discordgo v0.22.1
+	github.com/bwmarrin/discordgo v0.23.2
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-gonic/gin v1.6.3
 	github.com/gorilla/sessions v1.1.3 // indirect
