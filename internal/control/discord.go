@@ -82,7 +82,7 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 }
 
 func (control *Control) handleListServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
-	if !memberHasRole(member, control.Config.DiscordUserRoleID) && !memberHasRole(member, control.Config.DiscordAdminRoleID) {
+	if !memberHasRole(member, control.Config.DiscordAdminRoleID, control.Config.DiscordPowerUserRoleID, control.Config.DiscordUserRoleID) {
 		return ErrUnauthorized
 	}
 	managedServers, err := control.listServers(context.Background())
@@ -156,7 +156,7 @@ func (control *Control) handleListServerCommand(member *discordgo.Member, s *dis
 }
 
 func (control *Control) handleStartServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
-	if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
+	if !memberHasRole(member, control.Config.DiscordAdminRoleID, control.Config.DiscordPowerUserRoleID) {
 		return ErrUnauthorized
 	}
 	var req StartServerRequest
@@ -231,7 +231,7 @@ func (control *Control) handleNewServerCommand(member *discordgo.Member, s *disc
 }
 
 func (control *Control) handleExtendServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
-	if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
+	if !memberHasRole(member, control.Config.DiscordAdminRoleID, control.Config.DiscordPowerUserRoleID) {
 		return ErrUnauthorized
 	}
 	contentSplit := strings.Split(m.Content, " ")
@@ -258,7 +258,7 @@ func (control *Control) handleExtendServerCommand(member *discordgo.Member, s *d
 }
 
 func (control *Control) handleTerminateServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
-	if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
+	if !memberHasRole(member, control.Config.DiscordAdminRoleID, control.Config.DiscordPowerUserRoleID) {
 		return ErrUnauthorized
 	}
 	contentSplit := strings.Split(m.Content, " ")
@@ -313,15 +313,15 @@ func (control *Control) handleChangeServerTypeCommand(member *discordgo.Member, 
 	return nil
 }
 
-func memberHasRole(member *discordgo.Member, role string) bool {
-	var hasRole bool
-	for _, r := range member.Roles {
-		if r == role {
-			hasRole = true
-			break
+func memberHasRole(member *discordgo.Member, roles ...string) bool {
+	for _, givenRole := range roles {
+		for _, r := range member.Roles {
+			if r == givenRole {
+				return true
+			}
 		}
 	}
-	return hasRole
+	return false
 }
 
 func isPrivateChannel(s *discordgo.Session, channelID string) bool {

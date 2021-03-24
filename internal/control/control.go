@@ -36,15 +36,16 @@ type Control struct {
 }
 
 type Config struct {
-	ListenAddr         string
-	Location           *hcloud.Location
-	Networks           []*hcloud.Network
-	SSHKeys            []*hcloud.SSHKey
-	DNSZoneID          string
-	DiscordGuildID     string
-	DiscordChannelID   string
-	DiscordAdminRoleID string
-	DiscordUserRoleID  string
+	ListenAddr             string
+	Location               *hcloud.Location
+	Networks               []*hcloud.Network
+	SSHKeys                []*hcloud.SSHKey
+	DNSZoneID              string
+	DiscordGuildID         string
+	DiscordChannelID       string
+	DiscordAdminRoleID     string
+	DiscordUserRoleID      string
+	DiscordPowerUserRoleID string
 }
 
 func New(config *Config) (*Control, error) {

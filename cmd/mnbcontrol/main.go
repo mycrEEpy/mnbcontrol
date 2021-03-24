@@ -12,24 +12,25 @@ import (
 )
 
 const (
-	Version = "v0.14.1"
+	Version = "v0.15.0"
 )
 
 var (
-	logLevel           = flag.Int("logLevel", 4, "log level (0-6)")
-	logReportCaller    = flag.Bool("logReportCaller", true, "log report caller")
-	logFormatterJSON   = flag.Bool("logFormatterJson", false, "log formatter json")
-	listenAddr         = flag.String("listenAddr", ":8000", "http server listen address")
-	enableCookieAuth   = flag.Bool("enableCookieAuth", false, "set cookie after login")
-	locationName       = flag.String("locationName", "nbg1", "location name")
-	networkIDs         = flag.String("networkIDs", "", "comma separated list of network ids")
-	sshKeyIDs          = flag.String("sshKeyIDs", "", "comma separated list if ssh key ids")
-	dnsZoneID          = flag.String("dnsZoneID", "", "dns zone id, can be empty for disabling dns support")
-	discordCallback    = flag.String("discordCallback", "http://localhost:8000/auth/callback?provider=discord", "discord oauth callback url")
-	discordGuildID     = flag.String("discordGuildID", "", "discord guild id for authorization")
-	discordChannelID   = flag.String("discordChannelID", "", "discord channel id for user interaction")
-	discordAdminRoleID = flag.String("discordAdminRoleID", "", "discord role id for admin authorization")
-	discordUserRoleID  = flag.String("discordUserRoleID", "", "discord role id for user authorization")
+	logLevel               = flag.Int("logLevel", 4, "log level (0-6)")
+	logReportCaller        = flag.Bool("logReportCaller", true, "log report caller")
+	logFormatterJSON       = flag.Bool("logFormatterJson", false, "log formatter json")
+	listenAddr             = flag.String("listenAddr", ":8000", "http server listen address")
+	enableCookieAuth       = flag.Bool("enableCookieAuth", false, "set cookie after login")
+	locationName           = flag.String("locationName", "nbg1", "location name")
+	networkIDs             = flag.String("networkIDs", "", "comma separated list of network ids")
+	sshKeyIDs              = flag.String("sshKeyIDs", "", "comma separated list if ssh key ids")
+	dnsZoneID              = flag.String("dnsZoneID", "", "dns zone id, can be empty for disabling dns support")
+	discordCallback        = flag.String("discordCallback", "http://localhost:8000/auth/callback?provider=discord", "discord oauth callback url")
+	discordGuildID         = flag.String("discordGuildID", "", "discord guild id for authorization")
+	discordChannelID       = flag.String("discordChannelID", "", "discord channel id for user interaction")
+	discordAdminRoleID     = flag.String("discordAdminRoleID", "", "discord role id for admin authorization")
+	discordUserRoleID      = flag.String("discordUserRoleID", "", "discord role id for user authorization")
+	discordPowerUserRoleID = flag.String("discordPowerUserRoleID", "", "discord role id for power user authorization")
 )
 
 func init() {
@@ -71,15 +72,16 @@ func main() {
 	}
 
 	ctrl, err := control.New(&control.Config{
-		ListenAddr:         *listenAddr,
-		Location:           &hcloud.Location{Name: *locationName},
-		Networks:           networks,
-		SSHKeys:            sshKeys,
-		DNSZoneID:          *dnsZoneID,
-		DiscordGuildID:     *discordGuildID,
-		DiscordChannelID:   *discordChannelID,
-		DiscordAdminRoleID: *discordAdminRoleID,
-		DiscordUserRoleID:  *discordUserRoleID,
+		ListenAddr:             *listenAddr,
+		Location:               &hcloud.Location{Name: *locationName},
+		Networks:               networks,
+		SSHKeys:                sshKeys,
+		DNSZoneID:              *dnsZoneID,
+		DiscordGuildID:         *discordGuildID,
+		DiscordChannelID:       *discordChannelID,
+		DiscordAdminRoleID:     *discordAdminRoleID,
+		DiscordUserRoleID:      *discordUserRoleID,
+		DiscordPowerUserRoleID: *discordPowerUserRoleID,
 	})
 	if err != nil {
 		logrus.Fatalf("failed to create control: %w", err)
