@@ -27,8 +27,32 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 		return
 	}
 
+	// no private chats but for admins
+	if isPrivateChannel(s.State, m.ChannelID) && !memberHasRole(m.Member, control.Config.DiscordAdminRoleID) {
+		_, err := s.ChannelMessageSend(m.ChannelID, "This is becoming too private for me now!")
+		if err != nil {
+			log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
+		}
+		return
+	}
+
+	// only accept messages on the configured channel
+	if m.ChannelID != control.Config.DiscordChannelID {
+		return
+	}
+
+	// check member is part of configured guild
 	member, err := s.GuildMember(control.Config.DiscordGuildID, m.Author.ID)
 	if err != nil {
+		_, err := s.ChannelMessageSend(m.ChannelID, "You are not allowed to talk to me!")
+		if err != nil {
+			log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
+		}
+		return
+	}
+
+	// check member has enough rights
+	if !memberHasRole(member, control.Config.DiscordUserRoleID) && !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 		_, err := s.ChannelMessageSend(m.ChannelID, "You are not allowed to talk to me!")
 		if err != nil {
 			log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
@@ -50,16 +74,6 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 	case strings.HasPrefix(m.Content, "!server type"):
 		err = control.handleChangeServerTypeCommand(member, s, m.Message)
 	default:
-		if !isPrivateChannel(s.State, m.ChannelID) {
-			return
-		}
-		if !memberHasRole(member, control.Config.DiscordUserRoleID) && !memberHasRole(member, control.Config.DiscordAdminRoleID) {
-			_, err := s.ChannelMessageSend(m.ChannelID, "You are not allowed to talk to me!")
-			if err != nil {
-				log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
-			}
-			return
-		}
 		_, err := s.ChannelMessageSend(m.ChannelID, "I'm sorry, Dave. I'm afraid I can't do that.")
 		if err != nil {
 			log.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
@@ -77,9 +91,6 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 }
 
 func (control *Control) handleListServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
-	if m.ChannelID != control.Config.DiscordChannelID && !isPrivateChannel(s.State, m.ChannelID) {
-		return nil
-	}
 	if !memberHasRole(member, control.Config.DiscordUserRoleID) && !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 		return ErrUnauthorized
 	}
@@ -154,9 +165,6 @@ func (control *Control) handleListServerCommand(member *discordgo.Member, s *dis
 }
 
 func (control *Control) handleStartServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
-	if !isPrivateChannel(s.State, m.ChannelID) {
-		return nil
-	}
 	if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 		return ErrUnauthorized
 	}
@@ -193,9 +201,6 @@ func (control *Control) handleStartServerCommand(member *discordgo.Member, s *di
 }
 
 func (control *Control) handleNewServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
-	if !isPrivateChannel(s.State, m.ChannelID) {
-		return nil
-	}
 	if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 		return ErrUnauthorized
 	}
@@ -235,9 +240,6 @@ func (control *Control) handleNewServerCommand(member *discordgo.Member, s *disc
 }
 
 func (control *Control) handleExtendServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
-	if !isPrivateChannel(s.State, m.ChannelID) {
-		return nil
-	}
 	if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 		return ErrUnauthorized
 	}
@@ -265,9 +267,6 @@ func (control *Control) handleExtendServerCommand(member *discordgo.Member, s *d
 }
 
 func (control *Control) handleTerminateServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
-	if !isPrivateChannel(s.State, m.ChannelID) {
-		return nil
-	}
 	if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 		return ErrUnauthorized
 	}
@@ -297,9 +296,6 @@ func (control *Control) handleTerminateServerCommand(member *discordgo.Member, s
 }
 
 func (control *Control) handleChangeServerTypeCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
-	if !isPrivateChannel(s.State, m.ChannelID) {
-		return nil
-	}
 	if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 		return ErrUnauthorized
 	}
