@@ -320,7 +320,12 @@ func (control *Control) startServer(ctx context.Context, req StartServerRequest)
 		}
 	}
 
-	return r.Server, nil
+	server, _, err := control.hclient.Server.Get(ctx, r.Server.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get server %s: %s", r.Server.Name, err)
+	}
+
+	return server, nil
 }
 
 func (control *Control) terminateServer(ctx context.Context, serverName string) error {
