@@ -27,20 +27,6 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 		return
 	}
 
-	// no private chats but for admins
-	if isPrivateChannel(s.State, m.ChannelID) && !memberHasRole(m.Member, control.Config.DiscordAdminRoleID) {
-		_, err := s.ChannelMessageSend(m.ChannelID, "This is becoming too private for me now!")
-		if err != nil {
-			log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
-		}
-		return
-	}
-
-	// only accept messages on the configured channel
-	if m.ChannelID != control.Config.DiscordChannelID {
-		return
-	}
-
 	// check member is part of configured guild
 	member, err := s.GuildMember(control.Config.DiscordGuildID, m.Author.ID)
 	if err != nil {
@@ -51,12 +37,17 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 		return
 	}
 
-	// check member has enough rights
-	if !memberHasRole(member, control.Config.DiscordUserRoleID) && !memberHasRole(member, control.Config.DiscordAdminRoleID) {
-		_, err := s.ChannelMessageSend(m.ChannelID, "You are not allowed to talk to me!")
+	// no private chats but for admins
+	if isPrivateChannel(s, m.ChannelID) && !memberHasRole(member, control.Config.DiscordAdminRoleID) {
+		_, err := s.ChannelMessageSend(m.ChannelID, "This is becoming too private for me now!")
 		if err != nil {
 			log.Errorf("discord: failed to reply to user %s: %s", m.Member.User.Username, err)
 		}
+		return
+	}
+
+	// only accept messages on the configured channel or private
+	if m.ChannelID != control.Config.DiscordChannelID && !isPrivateChannel(s, m.ChannelID) {
 		return
 	}
 
@@ -333,11 +324,10 @@ func memberHasRole(member *discordgo.Member, role string) bool {
 	return hasRole
 }
 
-func isPrivateChannel(state *discordgo.State, channelID string) bool {
-	for _, privateChannel := range state.PrivateChannels {
-		if privateChannel.ID == channelID {
-			return true
-		}
+func isPrivateChannel(s *discordgo.Session, channelID string) bool {
+	channel, err := s.Channel(channelID)
+	if err != nil || channel.Type != discordgo.ChannelTypeDM {
+		return false
 	}
-	return false
+	return true
 }
