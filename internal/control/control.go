@@ -258,10 +258,11 @@ func (control *Control) newServer(ctx context.Context, req CreateNewServerReques
 		return nil, fmt.Errorf("failed to create server %s: %s", req.ServerName, err)
 	}
 
-	err = control.attachDNSRecordToServer(ctx, r.Server)
+	dnsEntry, err := control.attachDNSRecordToServer(ctx, r.Server)
 	if err != nil {
 		return nil, fmt.Errorf("failed to attach dns record to server %s: %s", req.ServerName, err)
 	}
+	r.Server.PublicNet.IPv4.DNSPtr = dnsEntry
 
 	return r.Server, nil
 }
@@ -315,18 +316,14 @@ func (control *Control) startServer(ctx context.Context, req StartServerRequest)
 	}
 
 	if len(control.Config.DNSZoneID) > 0 {
-		err = control.attachDNSRecordToServer(ctx, r.Server)
+		dnsEntry, err := control.attachDNSRecordToServer(ctx, r.Server)
 		if err != nil {
 			return nil, fmt.Errorf("failed to attach dns record to server %s: %s", req.ServerName, err)
 		}
+		r.Server.PublicNet.IPv4.DNSPtr = dnsEntry
 	}
 
-	server, _, err := control.hclient.Server.Get(ctx, r.Server.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get server %s: %s", r.Server.Name, err)
-	}
-
-	return server, nil
+	return r.Server, nil
 }
 
 func (control *Control) terminateServer(ctx context.Context, serverName string) error {
@@ -543,20 +540,22 @@ func (control *Control) changeServerType(ctx context.Context, req ChangeServerTy
 	return nil
 }
 
-func (control *Control) attachDNSRecordToServer(ctx context.Context, server *hcloud.Server) error {
-	dnsRecordID, err := createDNSRecord(control.Config.DNSZoneID, server.Name+".svc", server.PublicNet.IPv4.IP.String())
+func (control *Control) attachDNSRecordToServer(ctx context.Context, server *hcloud.Server) (string, error) {
+	dnsName := server.Name + ".svc"
+	dnsRecordID, err := createDNSRecord(control.Config.DNSZoneID, dnsName, server.PublicNet.IPv4.IP.String())
 	if err != nil {
-		return fmt.Errorf("failed to create dns: %s", err)
+		return "", fmt.Errorf("failed to create dns: %s", err)
 	}
 	labels := server.Labels
 	labels[LabelDNSRecordID] = dnsRecordID
 	_, _, err = control.hclient.Server.Update(ctx, server, hcloud.ServerUpdateOpts{Labels: labels})
 	if err != nil {
-		return fmt.Errorf("failed to attach dns record id to labels: %s", err)
+		return "", fmt.Errorf("failed to attach dns record id to labels: %s", err)
 	}
-	_, _, err = control.hclient.Server.ChangeDNSPtr(ctx, server, server.PublicNet.IPv4.IP.String(), hcloud.String(server.Name+".svc.mnbr.eu"))
+	dnsFullEntry := dnsName + ".mnbr.eu"
+	_, _, err = control.hclient.Server.ChangeDNSPtr(ctx, server, server.PublicNet.IPv4.IP.String(), hcloud.String(dnsFullEntry))
 	if err != nil {
-		return fmt.Errorf("failed to change reverse dns pointer for server %s: %s", server.Name, err)
+		return "", fmt.Errorf("failed to change reverse dns pointer for server %s: %s", server.Name, err)
 	}
-	return nil
+	return dnsFullEntry, nil
 }
