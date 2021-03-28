@@ -51,6 +51,11 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 		return
 	}
 
+	// ignore messages without trigger key
+	if !strings.HasPrefix(m.Content, "!") {
+		return
+	}
+
 	switch {
 	case m.Content == "!server list":
 		err = control.handleListServerCommand(member, s, m.Message)
