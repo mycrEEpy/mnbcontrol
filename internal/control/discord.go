@@ -56,18 +56,19 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 		return
 	}
 
+	msgLower := strings.ToLower(m.Content)
 	switch {
-	case m.Content == "!server list":
+	case msgLower == "!server list":
 		err = control.handleListServerCommand(member, s, m.Message)
-	case strings.HasPrefix(m.Content, "!server start"):
+	case strings.HasPrefix(msgLower, "!server start"):
 		err = control.handleStartServerCommand(member, s, m.Message)
-	case strings.HasPrefix(m.Content, "!server new"):
+	case strings.HasPrefix(msgLower, "!server new"):
 		err = control.handleNewServerCommand(member, s, m.Message)
-	case strings.HasPrefix(m.Content, "!server extend"):
+	case strings.HasPrefix(msgLower, "!server extend"):
 		err = control.handleExtendServerCommand(member, s, m.Message)
-	case strings.HasPrefix(m.Content, "!server stop"):
+	case strings.HasPrefix(msgLower, "!server stop"):
 		err = control.handleTerminateServerCommand(member, s, m.Message)
-	case strings.HasPrefix(m.Content, "!server type"):
+	case strings.HasPrefix(msgLower, "!server type"):
 		err = control.handleChangeServerTypeCommand(member, s, m.Message)
 	default:
 		_, err := s.ChannelMessageSend(m.ChannelID, "I'm sorry, Dave. I'm afraid I can't do that.")
@@ -165,7 +166,7 @@ func (control *Control) handleStartServerCommand(member *discordgo.Member, s *di
 		return ErrUnauthorized
 	}
 	var req StartServerRequest
-	contentSplit := strings.Split(m.Content, " ")
+	contentSplit := strings.Split(strings.ToLower(m.Content), " ")
 	switch len(contentSplit) {
 	case 2:
 		req.ServerName = contentSplit[2]
@@ -201,7 +202,7 @@ func (control *Control) handleNewServerCommand(member *discordgo.Member, s *disc
 		return ErrUnauthorized
 	}
 	var req CreateNewServerRequest
-	contentSplit := strings.Split(m.Content, " ")
+	contentSplit := strings.Split(strings.ToLower(m.Content), " ")
 	switch len(contentSplit) {
 	case 3:
 		req.ServerName = contentSplit[2]
@@ -239,7 +240,7 @@ func (control *Control) handleExtendServerCommand(member *discordgo.Member, s *d
 	if !memberHasRole(member, control.Config.DiscordAdminRoleID, control.Config.DiscordPowerUserRoleID) {
 		return ErrUnauthorized
 	}
-	contentSplit := strings.Split(m.Content, " ")
+	contentSplit := strings.Split(strings.ToLower(m.Content), " ")
 	if len(contentSplit) != 4 {
 		return ErrIllegalArguments
 	}
@@ -266,7 +267,7 @@ func (control *Control) handleTerminateServerCommand(member *discordgo.Member, s
 	if !memberHasRole(member, control.Config.DiscordAdminRoleID, control.Config.DiscordPowerUserRoleID) {
 		return ErrUnauthorized
 	}
-	contentSplit := strings.Split(m.Content, " ")
+	contentSplit := strings.Split(strings.ToLower(m.Content), " ")
 	if len(contentSplit) != 3 {
 		return ErrIllegalArguments
 	}
@@ -295,7 +296,7 @@ func (control *Control) handleChangeServerTypeCommand(member *discordgo.Member, 
 	if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 		return ErrUnauthorized
 	}
-	contentSplit := strings.Split(m.Content, " ")
+	contentSplit := strings.Split(strings.ToLower(m.Content), " ")
 	if len(contentSplit) != 4 {
 		return ErrIllegalArguments
 	}
