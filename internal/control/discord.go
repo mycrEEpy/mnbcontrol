@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	listServerTemplate = "Status: %s\nType: %v\nDNS: %s\nIPv4: %s\nTTL: %s\n"
+	listServerTemplate = "Status: %s\nType: %v\nDNS: %s\nIPv4: %s\nIPv6: %s\nTTL: %s\n"
 )
 
 var (
@@ -132,6 +132,7 @@ func (control *Control) handleListServerCommand(member *discordgo.Member, s *dis
 				server.ServerType.Name,
 				server.PublicNet.IPv4.DNSPtr,
 				server.PublicNet.IPv4.IP.String(),
+				server.PublicNet.IPv6.IP.String()+"1",
 				ttl.Format(time.RFC3339),
 			),
 			Inline: true,
@@ -147,6 +148,7 @@ func (control *Control) handleListServerCommand(member *discordgo.Member, s *dis
 				listServerTemplate,
 				"terminated",
 				image.Labels[LabelServerType],
+				"n/a",
 				"n/a",
 				"n/a",
 				"n/a",
@@ -185,10 +187,9 @@ func (control *Control) handleStartServerCommand(member *discordgo.Member, s *di
 		return fmt.Errorf("failed to start server for bot: %s", err)
 	}
 	_, err = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(
-		"Server %s started with %s pointing at %s. It will run for %s",
+		"Server %s started with DNS %s. It will run for %s",
 		server.Name,
 		server.PublicNet.IPv4.DNSPtr,
-		server.PublicNet.IPv4.IP.String(),
 		req.TTL,
 	))
 	if err != nil {
@@ -224,10 +225,9 @@ func (control *Control) handleNewServerCommand(member *discordgo.Member, s *disc
 		return fmt.Errorf("failed to create new server for bot: %s", err)
 	}
 	_, err = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(
-		"Created new server %s with %s pointing at %s. It will run for %s",
+		"Created new server %s with DNS %s. It will run for %s",
 		server.Name,
 		server.Name+".svc.mnbr.eu",
-		server.PublicNet.IPv4.IP.String(),
 		req.TTL,
 	))
 	if err != nil {

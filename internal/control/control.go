@@ -24,7 +24,8 @@ const (
 	LabelService              = "mnbr.eu/svc"
 	LabelTTL                  = "mnbr.eu/ttl"
 	LabelActiveBlueprint      = "mnbr.eu/active-blueprint"
-	LabelDNSRecordID          = "mnbr.eu/dns-record-id"
+	LabelDNSARecordID         = "mnbr.eu/dns-a-record-id"
+	LabelDNSAAAARecordID      = "mnbr.eu/dns-aaaa-record-id"
 	LabelServerType           = "mnbr.eu/server-type"
 )
 
@@ -58,7 +59,7 @@ func New(config *Config) (*Control, error) {
 	if !ok {
 		return nil, errors.New("HCLOUD_TOKEN must be set")
 	}
-	control.hclient = hcloud.NewClient(hcloud.WithToken(token), hcloud.WithPollInterval(1*time.Second))
+	control.hclient = hcloud.NewClient(hcloud.WithToken(token), hcloud.WithPollInterval(5*time.Second))
 
 	var err error
 	control.discordSession, err = discordgo.New("Bot " + os.Getenv("DISCORD_BOT_TOKEN"))
@@ -439,10 +440,16 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 	}
 	log.Infof("deleted server %s", serverName)
 
-	if recordID, ok := server.Labels[LabelDNSRecordID]; ok {
+	if recordID, ok := server.Labels[LabelDNSARecordID]; ok {
 		err = deleteDNSRecord(recordID)
 		if err != nil {
-			return fmt.Errorf("failed to delete dns record for server %s: %s", serverName, err)
+			return fmt.Errorf("failed to delete dns A record %s for server %s: %s", recordID, serverName, err)
+		}
+	}
+	if recordID, ok := server.Labels[LabelDNSAAAARecordID]; ok {
+		err = deleteDNSRecord(recordID)
+		if err != nil {
+			return fmt.Errorf("failed to delete dns AAAA record %s for server %s: %s", recordID, serverName, err)
 		}
 	}
 
@@ -542,12 +549,17 @@ func (control *Control) changeServerType(ctx context.Context, req ChangeServerTy
 
 func (control *Control) attachDNSRecordToServer(ctx context.Context, server *hcloud.Server) (string, error) {
 	dnsName := server.Name + ".svc"
-	dnsRecordID, err := createDNSRecord(control.Config.DNSZoneID, dnsName, server.PublicNet.IPv4.IP.String())
+	dnsARecordID, err := createDNSRecord(control.Config.DNSZoneID, dnsName, "A", server.PublicNet.IPv4.IP.String())
 	if err != nil {
-		return "", fmt.Errorf("failed to create dns: %s", err)
+		return "", fmt.Errorf("failed to create dns A record: %s", err)
+	}
+	dnsAAAARecordID, err := createDNSRecord(control.Config.DNSZoneID, dnsName, "AAAA", server.PublicNet.IPv6.IP.String()+"1")
+	if err != nil {
+		return "", fmt.Errorf("failed to create dns A record: %s", err)
 	}
 	labels := server.Labels
-	labels[LabelDNSRecordID] = dnsRecordID
+	labels[LabelDNSARecordID] = dnsARecordID
+	labels[LabelDNSAAAARecordID] = dnsAAAARecordID
 	_, _, err = control.hclient.Server.Update(ctx, server, hcloud.ServerUpdateOpts{Labels: labels})
 	if err != nil {
 		return "", fmt.Errorf("failed to attach dns record id to labels: %s", err)
@@ -555,7 +567,11 @@ func (control *Control) attachDNSRecordToServer(ctx context.Context, server *hcl
 	dnsFullEntry := dnsName + ".mnbr.eu"
 	_, _, err = control.hclient.Server.ChangeDNSPtr(ctx, server, server.PublicNet.IPv4.IP.String(), hcloud.String(dnsFullEntry))
 	if err != nil {
-		return "", fmt.Errorf("failed to change reverse dns pointer for server %s: %s", server.Name, err)
+		return "", fmt.Errorf("failed to change ipv4 reverse dns pointer for server %s: %s", server.Name, err)
+	}
+	_, _, err = control.hclient.Server.ChangeDNSPtr(ctx, server, server.PublicNet.IPv6.IP.String()+"1", hcloud.String(dnsFullEntry))
+	if err != nil {
+		return "", fmt.Errorf("failed to change ipv6 reverse dns pointer for server %s: %s", server.Name, err)
 	}
 	return dnsFullEntry, nil
 }

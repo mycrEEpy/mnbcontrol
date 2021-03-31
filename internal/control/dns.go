@@ -28,10 +28,10 @@ type CreateDNSRecordResponse struct {
 	} `json:"record"`
 }
 
-func createDNSRecord(zoneID string, name string, value string) (string, error) {
+func createDNSRecord(zoneID string, name string, dnsType string, value string) (string, error) {
 	createDNSRecordRequest := CreateDNSRecordRequest{
 		ZoneID: zoneID,
-		Type:   "A",
+		Type:   dnsType,
 		Name:   name,
 		Value:  value,
 		TTL:    300,
