@@ -58,6 +58,8 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 
 	msgLower := strings.ToLower(m.Content)
 	switch {
+	case msgLower == "!help":
+		err = control.handleHelpCommand(member, s, m.Message)
 	case msgLower == "!server list":
 		err = control.handleListServerCommand(member, s, m.Message)
 	case strings.HasPrefix(msgLower, "!server start"):
@@ -85,6 +87,63 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 		}
 		return
 	}
+}
+
+func (control *Control) handleHelpCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
+	if !memberHasRole(member, control.Config.DiscordAdminRoleID, control.Config.DiscordPowerUserRoleID, control.Config.DiscordUserRoleID) {
+		return ErrUnauthorized
+	}
+	msg := &discordgo.MessageEmbed{
+		Type:        discordgo.EmbedTypeRich,
+		Title:       "Control Commands",
+		Description: "",
+		Color:       0,
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: "I am putting myself to the fullest possible use, which is all I think that any conscious entity can ever hope to do.",
+		},
+		Fields: []*discordgo.MessageEmbedField{
+			{
+				Name:   "!help",
+				Value:  "Show this help message",
+				Inline: true,
+			},
+			{
+				Name:   "!server list",
+				Value:  "List all running & terminated server",
+				Inline: true,
+			},
+			{
+				Name:   "!server start [name] [ttl]",
+				Value:  "Start a terminated server",
+				Inline: true,
+			},
+			{
+				Name:   "!server stop [name]",
+				Value:  "Stop a running server",
+				Inline: true,
+			},
+			{
+				Name:   "!server extend [name] [ttl]",
+				Value:  "Extend the TTL of a running server",
+				Inline: true,
+			},
+			{
+				Name:   "!server new [name] [type] [ttl]",
+				Value:  "Create a new server",
+				Inline: true,
+			},
+			{
+				Name:   "!server type [name] [type]",
+				Value:  "Change the type of a terminated server",
+				Inline: true,
+			},
+		},
+	}
+	_, err := s.ChannelMessageSendEmbed(m.ChannelID, msg)
+	if err != nil {
+		return fmt.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
+	}
+	return nil
 }
 
 func (control *Control) handleListServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
@@ -170,9 +229,6 @@ func (control *Control) handleStartServerCommand(member *discordgo.Member, s *di
 	var req StartServerRequest
 	contentSplit := strings.Split(strings.ToLower(m.Content), " ")
 	switch len(contentSplit) {
-	case 2:
-		req.ServerName = contentSplit[2]
-		req.TTL = "12h"
 	case 3:
 		req.ServerName = contentSplit[2]
 		req.TTL = "12h"
