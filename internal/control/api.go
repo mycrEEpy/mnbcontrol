@@ -27,6 +27,7 @@ type StartServerRequest struct {
 type ExtendServerRequest struct {
 	ServerName string `json:"serverName"`
 	TTL        string `json:"ttl"`
+	Inverse    bool   `json:"inverse"`
 }
 
 type ChangeServerTypeRequest struct {

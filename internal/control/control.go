@@ -477,6 +477,9 @@ func (control *Control) extendServer(ctx context.Context, req ExtendServerReques
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse new ttl duration: %s", err)
 	}
+	if req.Inverse {
+		extendDuration = extendDuration * -1
+	}
 
 	server, _, err := control.hclient.Server.Get(ctx, req.ServerName)
 	if err != nil {

@@ -68,6 +68,8 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 		err = control.handleNewServerCommand(member, s, m.Message)
 	case strings.HasPrefix(msgLower, "!server extend"):
 		err = control.handleExtendServerCommand(member, s, m.Message)
+	case strings.HasPrefix(msgLower, "!server prune"):
+		err = control.handlePruneServerCommand(member, s, m.Message)
 	case strings.HasPrefix(msgLower, "!server stop"):
 		err = control.handleTerminateServerCommand(member, s, m.Message)
 	case strings.HasPrefix(msgLower, "!server type"):
@@ -125,6 +127,11 @@ func (control *Control) handleHelpCommand(member *discordgo.Member, s *discordgo
 			{
 				Name:   "!server extend [name] [ttl]",
 				Value:  "Extend the TTL of a running server",
+				Inline: true,
+			},
+			{
+				Name:   "!server prune [name] [ttl]",
+				Value:  "Prune the TTL of a running server",
 				Inline: true,
 			},
 			{
@@ -303,6 +310,7 @@ func (control *Control) handleExtendServerCommand(member *discordgo.Member, s *d
 	req := ExtendServerRequest{
 		ServerName: contentSplit[2],
 		TTL:        contentSplit[3],
+		Inverse:    false,
 	}
 	extendedTTL, err := control.extendServer(context.Background(), req)
 	if err != nil {
@@ -310,6 +318,34 @@ func (control *Control) handleExtendServerCommand(member *discordgo.Member, s *d
 	}
 	_, err = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(
 		"Server %s has been extended until %s",
+		req.ServerName,
+		extendedTTL.Format(time.RFC3339),
+	))
+	if err != nil {
+		return fmt.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
+	}
+	return nil
+}
+
+func (control *Control) handlePruneServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
+	if !memberHasRole(member, control.Config.DiscordAdminRoleID, control.Config.DiscordPowerUserRoleID) {
+		return ErrUnauthorized
+	}
+	contentSplit := strings.Split(strings.ToLower(m.Content), " ")
+	if len(contentSplit) != 4 {
+		return ErrIllegalArguments
+	}
+	req := ExtendServerRequest{
+		ServerName: contentSplit[2],
+		TTL:        contentSplit[3],
+		Inverse:    true,
+	}
+	extendedTTL, err := control.extendServer(context.Background(), req)
+	if err != nil {
+		return fmt.Errorf("failed to prune server for bot: %s", err)
+	}
+	_, err = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(
+		"Server %s has been pruned to %s",
 		req.ServerName,
 		extendedTTL.Format(time.RFC3339),
 	))
