@@ -127,6 +127,11 @@ func (control *Control) handleHelpCommand(member *discordgo.Member, s *discordgo
 				Inline: true,
 			},
 			{
+				Name:   "!server reboot [name]",
+				Value:  "Reboot a running server",
+				Inline: true,
+			},
+			{
 				Name:   "!server extend [name] [ttl]",
 				Value:  "Extend the TTL of a running server",
 				Inline: true,
