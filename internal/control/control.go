@@ -97,6 +97,7 @@ func New(config *Config) (*Control, error) {
 	apiServer.GET("/", control.ListServers)
 	apiServer.POST("/", control.NewServer)
 	apiServer.POST("/:name/_start", control.StartServer)
+	apiServer.POST("/:name/_reboot", control.RebootServer)
 	apiServer.PUT("/:name/_extend", control.ExtendServer)
 	apiServer.PUT("/:name/_type", control.ChangeServerType)
 	apiServer.DELETE("/:name", control.TerminateServer)
@@ -470,6 +471,44 @@ func (control *Control) listImages(ctx context.Context) ([]*hcloud.Image, error)
 		managedImages = append(managedImages, image)
 	}
 	return managedImages, nil
+}
+
+func (control *Control) rebootServer(ctx context.Context, serverName string) error {
+	server, _, err := control.hclient.Server.Get(ctx, serverName)
+	if err != nil {
+		return fmt.Errorf("failed to get server %s by name: %s", serverName, err)
+	}
+	if server == nil {
+		return errors.New("server does not exist")
+	}
+
+	rebootAction, _, err := control.hclient.Server.Reboot(ctx, server)
+	if err != nil {
+		return fmt.Errorf("failed to reboot server %s: %s", serverName, err)
+	}
+
+	progressChan, errChan := control.hclient.Action.WatchProgress(ctx, rebootAction)
+	err = func() error {
+		for {
+			select {
+			case progress := <-progressChan:
+				log.Infof("reboot progress for server %s: %d%%", serverName, progress)
+				if progress == 100 {
+					log.Infof("reboot complete for server %s", serverName)
+					return nil
+				}
+			case err := <-errChan:
+				if err != nil {
+					return fmt.Errorf("failed to reboot server %s: %s", serverName, err)
+				}
+			}
+		}
+	}()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (control *Control) extendServer(ctx context.Context, req ExtendServerRequest) (*time.Time, error) {

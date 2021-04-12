@@ -112,6 +112,24 @@ func (control *Control) TerminateServer(ctx *gin.Context) {
 	ctx.Status(http.StatusOK)
 }
 
+func (control *Control) RebootServer(ctx *gin.Context) {
+	serverName, ok := ctx.Params.Get("name")
+	if !ok {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, APIError{
+			errors.New("missing name parameter").Error(),
+		})
+		return
+	}
+	err := control.rebootServer(ctx, serverName)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
+			err.Error(),
+		})
+		return
+	}
+	ctx.Status(http.StatusOK)
+}
+
 func (control *Control) ExtendServer(ctx *gin.Context) {
 	serverName, ok := ctx.Params.Get("name")
 	if !ok {

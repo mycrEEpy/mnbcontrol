@@ -72,6 +72,8 @@ func (control *Control) handleDiscordMessage(s *discordgo.Session, m *discordgo.
 		err = control.handlePruneServerCommand(member, s, m.Message)
 	case strings.HasPrefix(msgLower, "!server stop"):
 		err = control.handleTerminateServerCommand(member, s, m.Message)
+	case strings.HasPrefix(msgLower, "!server reboot"):
+		err = control.handleRebootServerCommand(member, s, m.Message)
 	case strings.HasPrefix(msgLower, "!server type"):
 		err = control.handleChangeServerTypeCommand(member, s, m.Message)
 	default:
@@ -348,6 +350,35 @@ func (control *Control) handlePruneServerCommand(member *discordgo.Member, s *di
 		"Server %s has been pruned to %s",
 		req.ServerName,
 		extendedTTL.Format(time.RFC3339),
+	))
+	if err != nil {
+		return fmt.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
+	}
+	return nil
+}
+
+func (control *Control) handleRebootServerCommand(member *discordgo.Member, s *discordgo.Session, m *discordgo.Message) error {
+	if !memberHasRole(member, control.Config.DiscordAdminRoleID, control.Config.DiscordPowerUserRoleID) {
+		return ErrUnauthorized
+	}
+	contentSplit := strings.Split(strings.ToLower(m.Content), " ")
+	if len(contentSplit) != 3 {
+		return ErrIllegalArguments
+	}
+	_, err := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(
+		"Server %s will be rebooted, this might take a while",
+		contentSplit[2],
+	))
+	if err != nil {
+		return fmt.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
+	}
+	err = control.rebootServer(context.Background(), contentSplit[2])
+	if err != nil {
+		return fmt.Errorf("failed to reboot server for bot: %s", err)
+	}
+	_, err = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(
+		"Server %s has been rebooted",
+		contentSplit[2],
 	))
 	if err != nil {
 		return fmt.Errorf("discord: failed to reply to user %s: %s", m.Author.Username, err)
