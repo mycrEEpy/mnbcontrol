@@ -29,6 +29,10 @@ const (
 	LabelServerType           = "mnbr.eu/server-type"
 )
 
+var (
+	MaxTTL = 24 * time.Hour
+)
+
 type Control struct {
 	Config         *Config
 	api            *http.Server
@@ -238,8 +242,8 @@ func (control *Control) newServer(ctx context.Context, req CreateNewServerReques
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ttl duration: %s", err)
 	}
-	if ttlDuration > 12*time.Hour {
-		return nil, errors.New("maximum ttl is 12h")
+	if ttlDuration > MaxTTL {
+		return nil, errors.New("maximum ttl overflow")
 	}
 	ttl := time.Now().Add(ttlDuration)
 	r, _, err := control.hclient.Server.Create(ctx, hcloud.ServerCreateOpts{
@@ -295,8 +299,8 @@ func (control *Control) startServer(ctx context.Context, req StartServerRequest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ttl duration: %s", err)
 	}
-	if ttlDuration > 12*time.Hour {
-		return nil, errors.New("maximum ttl is 12h")
+	if ttlDuration > MaxTTL {
+		return nil, errors.New("maximum ttl overflow")
 	}
 	ttl := time.Now().Add(ttlDuration)
 	r, _, err := control.hclient.Server.Create(ctx, hcloud.ServerCreateOpts{
@@ -536,8 +540,8 @@ func (control *Control) extendServer(ctx context.Context, req ExtendServerReques
 	currentTTL := time.Unix(int64(ttlInt), 0)
 	extendedTTL := currentTTL.Add(extendDuration)
 
-	if extendedTTL.Sub(time.Now()) > 12*time.Hour {
-		return nil, errors.New("server cannot be extended beyond 12h from now")
+	if extendedTTL.Sub(time.Now()) > MaxTTL {
+		return nil, errors.New("server cannot be extended beyond maximum ttl")
 	}
 
 	server.Labels[LabelTTL] = strconv.Itoa(int(extendedTTL.Unix()))
