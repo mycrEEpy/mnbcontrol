@@ -247,7 +247,7 @@ func (control *Control) newServer(ctx context.Context, req CreateNewServerReques
 	if ttlDuration > MaxTTL {
 		return nil, errors.New("maximum ttl overflow")
 	}
-	ttl := time.Now().Add(ttlDuration)
+	ttl := time.Now().Add(ttlDuration - 5*time.Minute)
 	r, _, err := control.hclient.Server.Create(ctx, hcloud.ServerCreateOpts{
 		Name:             req.ServerName,
 		ServerType:       &hcloud.ServerType{Name: req.ServerType},
@@ -304,7 +304,7 @@ func (control *Control) startServer(ctx context.Context, req StartServerRequest)
 	if ttlDuration > MaxTTL {
 		return nil, errors.New("maximum ttl overflow")
 	}
-	ttl := time.Now().Add(ttlDuration)
+	ttl := time.Now().Add(ttlDuration - 5*time.Minute)
 	r, _, err := control.hclient.Server.Create(ctx, hcloud.ServerCreateOpts{
 		Name:             req.ServerName,
 		ServerType:       &hcloud.ServerType{Name: latestServiceImage.Labels[LabelServerType]},
