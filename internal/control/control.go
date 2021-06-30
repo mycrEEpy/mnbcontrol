@@ -462,17 +462,17 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 }
 
 func (control *Control) listImages(ctx context.Context) ([]*hcloud.Image, error) {
-	images, _, err := control.hclient.Image.List(ctx, hcloud.ImageListOpts{})
+	images, _, err := control.hclient.Image.List(ctx, hcloud.ImageListOpts{
+		Type: []hcloud.ImageType{hcloud.ImageTypeSnapshot},
+	})
 	if err != nil {
 		return nil, err
 	}
 	var managedImages []*hcloud.Image
 	for _, image := range images {
-		_, ok := image.Labels[LabelManagedBy]
-		if !ok {
-			continue
+		if image.Labels[LabelManagedBy] == LabelValueMangedByControl {
+			managedImages = append(managedImages, image)
 		}
-		managedImages = append(managedImages, image)
 	}
 	return managedImages, nil
 }
