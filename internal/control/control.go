@@ -223,7 +223,9 @@ func (control *Control) listServers(ctx context.Context) ([]*hcloud.Server, erro
 }
 
 func (control *Control) newServer(ctx context.Context, req CreateNewServerRequest) (*hcloud.Server, error) {
-	allImages, _, err := control.hclient.Image.List(ctx, hcloud.ImageListOpts{})
+	allImages, _, err := control.hclient.Image.List(ctx, hcloud.ImageListOpts{
+		Type: []hcloud.ImageType{hcloud.ImageTypeSnapshot},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list images: %s", err)
 	}
@@ -274,7 +276,7 @@ func (control *Control) newServer(ctx context.Context, req CreateNewServerReques
 }
 
 func (control *Control) startServer(ctx context.Context, req StartServerRequest) (*hcloud.Server, error) {
-	allImages, _, err := control.hclient.Image.List(ctx, hcloud.ImageListOpts{})
+	allImages, err := control.listImages(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list images: %s", err)
 	}
