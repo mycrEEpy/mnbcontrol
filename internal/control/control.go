@@ -406,7 +406,21 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 		return err
 	}
 
-	if server.Image.Type == hcloud.ImageTypeSnapshot && server.Image.Labels[LabelActiveBlueprint] != "true" && !server.Image.Protection.Delete {
+	err = control.changeImageProtection(ctx, imageResult.Image, hcloud.ImageChangeProtectionOpts{
+		Delete: hcloud.Bool(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	err = control.changeImageProtection(ctx, server.Image, hcloud.ImageChangeProtectionOpts{
+		Delete: hcloud.Bool(false),
+	})
+	if err != nil {
+		return err
+	}
+
+	if server.Image.Type == hcloud.ImageTypeSnapshot && server.Image.Labels[LabelActiveBlueprint] != "true" {
 		_, err := control.hclient.Image.Delete(ctx, server.Image)
 		if err != nil {
 			return fmt.Errorf("failed to delete image %s[%d]: %s", server.Image.Name, server.Image.ID, err)
@@ -458,6 +472,36 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 		if err != nil {
 			return fmt.Errorf("failed to delete dns AAAA record %s for server %s: %s", recordID, serverName, err)
 		}
+	}
+
+	return nil
+}
+
+func (control *Control) changeImageProtection(ctx context.Context, image *hcloud.Image, opts hcloud.ImageChangeProtectionOpts) error {
+	action, _, err := control.hclient.Image.ChangeProtection(ctx, image, opts)
+	if err != nil {
+		return err
+	}
+
+	progressChan, errChan := control.hclient.Action.WatchProgress(ctx, action)
+	err = func() error {
+		for {
+			select {
+			case progress := <-progressChan:
+				log.Infof("protection change progress for image %s: %d%%", image.Name, progress)
+				if progress == 100 {
+					log.Infof("protection change complete for image %s", image.Name)
+					return nil
+				}
+			case err := <-errChan:
+				if err != nil {
+					return fmt.Errorf("failed to change protection for image %s: %s", image.Name, err)
+				}
+			}
+		}
+	}()
+	if err != nil {
+		return err
 	}
 
 	return nil
