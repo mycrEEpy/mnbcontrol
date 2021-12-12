@@ -77,18 +77,6 @@ func New(config *Config) (*Control, error) {
 	engine := gin.New()
 	engine.Use(gin.Recovery(), gin.Logger())
 
-	//store := cookie.NewStore([]byte(os.Getenv("SESSION_SECRET")))
-	//engine.Use(sessions.Sessions("mnbcontrol_session", store))
-	//engine.Use(csrf.Middleware(csrf.Options{
-	//	Secret: os.Getenv("CSRF_SECRET"),
-	//	ErrorFunc: func(c *gin.Context) {
-	//		c.AbortWithStatusJSON(http.StatusBadRequest, APIError{
-	//			errors.New("CSRF token mismatch").Error(),
-	//		})
-	//	},
-	//}))
-	//gothic.Store = store
-
 	control.api = &http.Server{
 		Addr:    config.ListenAddr,
 		Handler: engine,
@@ -110,8 +98,6 @@ func New(config *Config) (*Control, error) {
 	auth.GET("/", AuthLogin)
 	auth.GET("/callback", AuthCallback)
 	auth.GET("/logout", AuthLogout)
-
-	//engine.Static("/", "./web")
 
 	return control, nil
 }

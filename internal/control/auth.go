@@ -15,15 +15,7 @@ import (
 	"github.com/markbates/goth/providers/discord"
 )
 
-const (
-	WebTokenCookieName = "mnbcontrol_webtoken"
-)
-
-var (
-	cookieAuthEnabled bool
-)
-
-func AuthSetup(callbackURL string, enableCookieAuth bool) {
+func AuthSetup(callbackURL string) {
 	goth.UseProviders(
 		discord.New(
 			os.Getenv("DISCORD_KEY"),
@@ -32,7 +24,6 @@ func AuthSetup(callbackURL string, enableCookieAuth bool) {
 			discord.ScopeIdentify,
 		),
 	)
-	cookieAuthEnabled = enableCookieAuth
 }
 
 func AuthLogin(ctx *gin.Context) {
@@ -41,6 +32,7 @@ func AuthLogin(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, user)
 		return
 	}
+
 	gothic.BeginAuthHandler(ctx.Writer, ctx.Request)
 }
 
@@ -59,6 +51,7 @@ func AuthCallback(ctx *gin.Context) {
 		"userID": user.UserID,
 		"exp":    time.Now().Add(expiration).Format(time.RFC3339),
 	})
+
 	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SIGNING_KEY")))
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, APIError{
@@ -66,9 +59,7 @@ func AuthCallback(ctx *gin.Context) {
 		})
 		return
 	}
-	if cookieAuthEnabled {
-		ctx.SetCookie(WebTokenCookieName, tokenString, int(expiration.Seconds()), "/", "", false, true)
-	}
+
 	ctx.JSON(http.StatusOK, struct {
 		WebToken string `json:"webToken"`
 	}{
@@ -84,30 +75,23 @@ func AuthLogout(ctx *gin.Context) {
 		})
 		return
 	}
+
 	ctx.Redirect(http.StatusTemporaryRedirect, "/")
 }
 
 func (control *Control) Authorize() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var tokenStr string
+
 		authHeader := ctx.Request.Header.Get("Authorization")
+
 		if strings.HasPrefix(authHeader, "Bearer ") {
 			tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
 		} else {
-			if cookieAuthEnabled {
-				authCookie, err := ctx.Request.Cookie(WebTokenCookieName)
-				if err != nil {
-					ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
-						errors.New("unauthorized: missing auth").Error(),
-					})
-					return
-				}
-				tokenStr = authCookie.Value
-			} else {
-				ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
-					errors.New("unauthorized: missing auth").Error(),
-				})
-			}
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
+				errors.New("unauthorized: missing auth").Error(),
+			})
+			return
 		}
 
 		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
@@ -122,18 +106,21 @@ func (control *Control) Authorize() gin.HandlerFunc {
 			})
 			return
 		}
+
 		if !token.Valid {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
 				errors.New("unauthorized: token is invalid").Error(),
 			})
 			return
 		}
+
 		if err = token.Claims.Valid(); err != nil {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
 				errors.New("unauthorized: token claims are invalid").Error(),
 			})
 			return
 		}
+
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
@@ -141,6 +128,7 @@ func (control *Control) Authorize() gin.HandlerFunc {
 			})
 			return
 		}
+
 		expiration, err := time.Parse(time.RFC3339, fmt.Sprint(claims["exp"]))
 		if err != nil {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
@@ -148,6 +136,7 @@ func (control *Control) Authorize() gin.HandlerFunc {
 			})
 			return
 		}
+
 		if time.Now().After(expiration) {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
 				errors.New("unauthorized: token has been expired").Error(),
@@ -162,6 +151,7 @@ func (control *Control) Authorize() gin.HandlerFunc {
 			})
 			return
 		}
+
 		if !memberHasRole(member, control.Config.DiscordAdminRoleID) {
 			ctx.AbortWithStatusJSON(http.StatusForbidden, APIError{
 				fmt.Errorf("forbidden: permission check failed: %s", err).Error(),
