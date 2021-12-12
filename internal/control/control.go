@@ -103,7 +103,8 @@ func New(config *Config) (*Control, error) {
 }
 
 func (control *Control) Run() error {
-	log.Info("control is warming up")
+	log.Info("control is in startup")
+
 	err := control.discordSession.Open()
 	if err != nil {
 		return fmt.Errorf("failed to open discord session: %s", err)
@@ -113,6 +114,7 @@ func (control *Control) Run() error {
 	shutdownChan := make(chan os.Signal)
 	daemonQuitChan := make(chan os.Signal)
 	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
+
 	go control.daemon(daemonQuitChan, shutdownWG)
 	go control.waitForShutdown(shutdownChan, daemonQuitChan, shutdownWG)
 
@@ -121,6 +123,7 @@ func (control *Control) Run() error {
 		return fmt.Errorf("control api server failed: %s", err)
 	}
 	shutdownWG.Wait()
+
 	return nil
 }
 

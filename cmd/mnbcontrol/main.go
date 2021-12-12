@@ -11,8 +11,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	Version = "v0.20.0"
+var (
+	version = "develop"
+	commit  string
+	date    string
 )
 
 var (
@@ -46,9 +48,17 @@ func init() {
 }
 
 func main() {
-	logrus.Infof("control version: %s", Version)
+	infoFields := logrus.Fields{
+		"version": version,
+		"commit":  commit,
+		"date":    date,
+	}
+
+	logrus.WithFields(infoFields).Info("control is warming up")
+
 	var networks []*hcloud.Network
 	var sshKeys []*hcloud.SSHKey
+
 	if len(*networkIDs) > 0 {
 		networkIdsSplit := strings.Split(*networkIDs, ",")
 		for _, networkIdStr := range networkIdsSplit {
@@ -59,6 +69,7 @@ func main() {
 			networks = append(networks, &hcloud.Network{ID: networkId})
 		}
 	}
+
 	if len(*sshKeyIDs) > 0 {
 		sshKeyIdsSplit := strings.Split(*sshKeyIDs, ",")
 		for _, sshKeyIdsStr := range sshKeyIdsSplit {
