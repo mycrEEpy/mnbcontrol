@@ -29,7 +29,7 @@ required environment variables and pass some flags.
 | listenAddr             | string | :8000                                                | http server listen address                          |
 | locationName           | string | nbg1                                                 | Hetzner location name                               |
 | networkIDs             | string |                                                      | comma separated list of network ids                 |
-| sshKeyIDs              | string |                                                      | comma separated list if ssh key ids                 |
+| sshKeyIDs              | string |                                                      | comma separated list of ssh key ids                 |
 | dnsZoneID              | string |                                                      | dns zone id, can be empty for disabling dns support |
 | discordCallback        | string | http://localhost:8000/auth/callback?provider=discord | discord oauth callback url                          |
 | discordGuildID         | string |                                                      | discord guild id for authorization                  |
