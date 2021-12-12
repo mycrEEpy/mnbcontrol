@@ -4,7 +4,7 @@ before:
 
 builds:
   - id: mnbcontrol
-    main: .cmd/mnbcontrol/main.go
+    main: ./cmd/mnbcontrol
     env:
       - CGO_ENABLED=0
     goos:
