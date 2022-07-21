@@ -94,7 +94,7 @@ func main() {
 		DiscordPowerUserRoleID: *discordPowerUserRoleID,
 	})
 	if err != nil {
-		logrus.Fatalf("failed to create control: %w", err)
+		logrus.Fatalf("failed to create control: %s", err)
 	}
 
 	err = ctrl.Run()
