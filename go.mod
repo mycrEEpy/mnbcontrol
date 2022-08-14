@@ -46,5 +46,3 @@ require (
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
-
-replace github.com/gorilla/websocket v1.4.0 => github.com/gorilla/websocket v1.4.2
