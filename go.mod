@@ -3,7 +3,7 @@ module github.com/mycreepy/mnbcontrol
 go 1.18
 
 require (
-	github.com/bwmarrin/discordgo v0.26.0
+	github.com/bwmarrin/discordgo v0.26.1
 	github.com/gin-gonic/gin v1.8.1
 	github.com/golang-jwt/jwt/v4 v4.4.2
 	github.com/hetznercloud/hcloud-go v1.35.2
