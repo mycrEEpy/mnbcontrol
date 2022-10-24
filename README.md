@@ -17,7 +17,7 @@ required environment variables and pass some flags.
 | DISCORD_KEY       | Discord Access Token used for OAuth2                                          |
 | DISCORD_SECRET    | Discord Secret Token used for OAuth2                                          |
 | DISCORD_BOT_TOKEN | Discord Bot Token for interacting with the Discord API                        |
-| JWT_SIGNING_KEY   | Secret for singing the JSON Web Tokens                                        |
+| JWT_SIGNING_KEY   | Secret for signing the JSON Web Tokens                                        |
 
 ### Flags
 
