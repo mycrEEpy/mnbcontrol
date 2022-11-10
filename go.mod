@@ -6,7 +6,7 @@ require (
 	github.com/bwmarrin/discordgo v0.26.1
 	github.com/gin-gonic/gin v1.8.1
 	github.com/golang-jwt/jwt/v4 v4.4.2
-	github.com/hetznercloud/hcloud-go v1.36.0
+	github.com/hetznercloud/hcloud-go v1.37.0
 	github.com/markbates/goth v1.75.1
 	github.com/sirupsen/logrus v1.9.0
 )
