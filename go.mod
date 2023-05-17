@@ -8,7 +8,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.2.0
 	github.com/hetznercloud/hcloud-go v1.45.1
 	github.com/markbates/goth v1.77.0
-	github.com/sirupsen/logrus v1.9.0
+	github.com/sirupsen/logrus v1.9.1
 )
 
 require (
