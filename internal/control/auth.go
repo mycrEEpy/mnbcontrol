@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/discord"
@@ -110,13 +110,6 @@ func (control *Control) Authorize() gin.HandlerFunc {
 		if !token.Valid {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
 				errors.New("unauthorized: token is invalid").Error(),
-			})
-			return
-		}
-
-		if err = token.Claims.Valid(); err != nil {
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, APIError{
-				errors.New("unauthorized: token claims are invalid").Error(),
 			})
 			return
 		}
