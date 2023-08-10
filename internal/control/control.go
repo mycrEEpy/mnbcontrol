@@ -14,7 +14,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/gin-gonic/gin"
-	"github.com/hetznercloud/hcloud-go/hcloud"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -63,7 +63,7 @@ func New(config *Config) (*Control, error) {
 	if !ok {
 		return nil, errors.New("HCLOUD_TOKEN must be set")
 	}
-	control.hclient = hcloud.NewClient(hcloud.WithToken(token), hcloud.WithPollInterval(5*time.Second))
+	control.hclient = hcloud.NewClient(hcloud.WithToken(token), hcloud.WithPollBackoffFunc(hcloud.ConstantBackoff(5*time.Second)))
 
 	var err error
 	control.discordSession, err = discordgo.New("Bot " + os.Getenv("DISCORD_BOT_TOKEN"))
@@ -242,7 +242,7 @@ func (control *Control) newServer(ctx context.Context, req CreateNewServerReques
 		ServerType:       &hcloud.ServerType{Name: req.ServerType},
 		Image:            blueprintImage,
 		Location:         control.Config.Location,
-		StartAfterCreate: hcloud.Bool(true),
+		StartAfterCreate: hcloud.Ptr(true),
 		Labels: map[string]string{
 			LabelManagedBy: LabelValueMangedByControl,
 			LabelService:   req.ServerName,
@@ -299,7 +299,7 @@ func (control *Control) startServer(ctx context.Context, req StartServerRequest)
 		ServerType:       &hcloud.ServerType{Name: latestServiceImage.Labels[LabelServerType]},
 		Image:            latestServiceImage,
 		Location:         control.Config.Location,
-		StartAfterCreate: hcloud.Bool(true),
+		StartAfterCreate: hcloud.Ptr(true),
 		Labels: map[string]string{
 			LabelManagedBy: LabelValueMangedByControl,
 			LabelService:   req.ServerName,
@@ -363,7 +363,7 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 
 	imageResult, _, err := control.hclient.Server.CreateImage(ctx, server, &hcloud.ServerCreateImageOpts{
 		Type:        hcloud.ImageTypeSnapshot,
-		Description: hcloud.String(fmt.Sprintf("%s/%s", serverName, time.Now().Format(time.RFC3339))),
+		Description: hcloud.Ptr(fmt.Sprintf("%s/%s", serverName, time.Now().Format(time.RFC3339))),
 		Labels: map[string]string{
 			LabelManagedBy:  LabelValueMangedByControl,
 			LabelService:    serverName,
@@ -396,14 +396,14 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 	}
 
 	err = control.changeImageProtection(ctx, imageResult.Image, hcloud.ImageChangeProtectionOpts{
-		Delete: hcloud.Bool(true),
+		Delete: hcloud.Ptr(true),
 	})
 	if err != nil {
 		return err
 	}
 
 	err = control.changeImageProtection(ctx, server.Image, hcloud.ImageChangeProtectionOpts{
-		Delete: hcloud.Bool(false),
+		Delete: hcloud.Ptr(false),
 	})
 	if err != nil {
 		return err
@@ -646,11 +646,11 @@ func (control *Control) attachDNSRecordToServer(ctx context.Context, server *hcl
 		return "", fmt.Errorf("failed to attach dns record id to labels: %s", err)
 	}
 	dnsFullEntry := dnsName + ".mnbr.eu"
-	_, _, err = control.hclient.Server.ChangeDNSPtr(ctx, server, server.PublicNet.IPv4.IP.String(), hcloud.String(dnsFullEntry))
+	_, _, err = control.hclient.Server.ChangeDNSPtr(ctx, server, server.PublicNet.IPv4.IP.String(), hcloud.Ptr(dnsFullEntry))
 	if err != nil {
 		return "", fmt.Errorf("failed to change ipv4 reverse dns pointer for server %s: %s", server.Name, err)
 	}
-	_, _, err = control.hclient.Server.ChangeDNSPtr(ctx, server, server.PublicNet.IPv6.IP.String()+"1", hcloud.String(dnsFullEntry))
+	_, _, err = control.hclient.Server.ChangeDNSPtr(ctx, server, server.PublicNet.IPv6.IP.String()+"1", hcloud.Ptr(dnsFullEntry))
 	if err != nil {
 		return "", fmt.Errorf("failed to change ipv6 reverse dns pointer for server %s: %s", server.Name, err)
 	}

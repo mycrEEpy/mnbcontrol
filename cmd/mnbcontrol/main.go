@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hetznercloud/hcloud-go/hcloud"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/mycreepy/mnbcontrol/internal/control"
 	"github.com/sirupsen/logrus"
 )
@@ -62,7 +62,7 @@ func main() {
 	if len(*networkIDs) > 0 {
 		networkIdsSplit := strings.Split(*networkIDs, ",")
 		for _, networkIdStr := range networkIdsSplit {
-			networkId, err := strconv.Atoi(networkIdStr)
+			networkId, err := strconv.ParseInt(networkIdStr, 10, 64)
 			if err != nil {
 				logrus.Fatalf("networkIDs must be int")
 			}
@@ -73,7 +73,7 @@ func main() {
 	if len(*sshKeyIDs) > 0 {
 		sshKeyIdsSplit := strings.Split(*sshKeyIDs, ",")
 		for _, sshKeyIdsStr := range sshKeyIdsSplit {
-			sshKeyId, err := strconv.Atoi(sshKeyIdsStr)
+			sshKeyId, err := strconv.ParseInt(sshKeyIdsStr, 10, 64)
 			if err != nil {
 				logrus.Fatalf("sshKeyIDs must be int")
 			}
