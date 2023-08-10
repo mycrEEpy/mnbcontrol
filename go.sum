@@ -152,6 +152,9 @@ github.com/hashicorp/golang-lru v0.5.0/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ
 github.com/hashicorp/golang-lru v0.5.1/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
 github.com/hetznercloud/hcloud-go v1.48.0 h1:b6x0ABNYJr8zVX9sE1kCNMU/sndzI8vmZjxEWEr+Gn0=
 github.com/hetznercloud/hcloud-go v1.48.0/go.mod h1:VzDWThl47lOnZXY0q5/LPFD+M62pfe/52TV+mOrpp9Q=
+github.com/hetznercloud/hcloud-go v1.49.0 h1:b/dKaptbbahWrkzYilWi42UgyfpiQ0Qh9ZFvyAgAVoo=
+github.com/hetznercloud/hcloud-go v1.49.0/go.mod h1:VzDWThl47lOnZXY0q5/LPFD+M62pfe/52TV+mOrpp9Q=
+github.com/hetznercloud/hcloud-go/v2 v2.1.0/go.mod h1:4iUG2NG8b61IAwNx6UsMWQ6IfIf/i1RsG0BbsKAyR5Q=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/jarcoal/httpmock v0.0.0-20180424175123-9c70cfe4a1da/go.mod h1:ks+b9deReOc7jgqp+e7LuFiCBH6Rm5hL32cLcEAArb4=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=
