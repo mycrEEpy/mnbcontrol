@@ -7,7 +7,7 @@ require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/golang-jwt/jwt/v5 v5.0.0
 	github.com/hetznercloud/hcloud-go/v2 v2.2.0
-	github.com/markbates/goth v1.77.0
+	github.com/markbates/goth v1.78.0
 	github.com/sirupsen/logrus v1.9.3
 )
 
