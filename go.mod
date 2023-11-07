@@ -1,6 +1,6 @@
 module github.com/mycreepy/mnbcontrol
 
-go 1.21.3
+go 1.21.4
 
 require (
 	github.com/bwmarrin/discordgo v0.27.1
