@@ -5,7 +5,7 @@ go 1.21.4
 require (
 	github.com/bwmarrin/discordgo v0.27.1
 	github.com/gin-gonic/gin v1.9.1
-	github.com/golang-jwt/jwt/v5 v5.0.0
+	github.com/golang-jwt/jwt/v5 v5.1.0
 	github.com/hetznercloud/hcloud-go/v2 v2.4.0
 	github.com/markbates/goth v1.78.0
 	github.com/sirupsen/logrus v1.9.3
