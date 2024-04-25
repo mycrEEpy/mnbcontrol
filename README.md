@@ -1,5 +1,8 @@
 # Midnight Brawlers Control
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/mycreepy/mnbcontrol)](https://goreportcard.com/report/github.com/mycreepy/mnbcontrol)
+[![Known Vulnerabilities](https://snyk.io/test/github/mycrEEpy/mnbcontrol/badge.svg)](https://snyk.io/test/github/mycrEEpy/mnbcontrol)
+
 `mnbcontrol` is the API & Daemon powering the Midnight Brawlers
 server landscape.
 
