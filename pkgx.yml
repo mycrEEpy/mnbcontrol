@@ -1,0 +1,3 @@
+dependencies:
+  go.dev: 1.22.2
+  goreleaser.com: 1.25.1
