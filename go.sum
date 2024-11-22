@@ -45,8 +45,8 @@ github.com/gorilla/sessions v1.2.1/go.mod h1:dk2InVEVJ0sfLlnXv9EAgkf6ecYs/i80K/z
 github.com/gorilla/websocket v1.4.2/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/gorilla/websocket v1.5.0 h1:PPwGk2jz7EePpoHN/+ClbZu8SPxiqlu12wZP/3sWmnc=
 github.com/gorilla/websocket v1.5.0/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
-github.com/hetznercloud/hcloud-go/v2 v2.16.0 h1:s5wZFMX6/hZxONbD19pZ+JWvGaf2I7zH+f/Cem2ICAQ=
-github.com/hetznercloud/hcloud-go/v2 v2.16.0/go.mod h1:h8sHav+27Xa+48cVMAvAUMELov5h298Ilg2vflyTHgg=
+github.com/hetznercloud/hcloud-go/v2 v2.17.0 h1:ge0w2piey9SV6XGyU/wQ6HBR24QyMbJ3wLzezplqR68=
+github.com/hetznercloud/hcloud-go/v2 v2.17.0/go.mod h1:zfyZ4Orx+mPpYDzWAxXR7DHGL50nnlZ5Edzgs1o6f/s=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=
 github.com/json-iterator/go v1.1.12/go.mod h1:e30LSqwooZae/UwlEbR2852Gd8hjQvJoHmT4TnhNGBo=
 github.com/klauspost/compress v1.17.9 h1:6KIumPrER1LHsvBVuDa0r5xaG0Es51mhhB9BQB2qeMA=
