@@ -2,7 +2,7 @@ module github.com/mycreepy/mnbcontrol
 
 go 1.23.0
 
-toolchain go1.23.4
+toolchain go1.23.5
 
 require (
 	github.com/bwmarrin/discordgo v0.28.1
