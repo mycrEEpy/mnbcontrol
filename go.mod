@@ -6,7 +6,7 @@ toolchain go1.24.3
 
 require (
 	github.com/bwmarrin/discordgo v0.28.1
-	github.com/gin-gonic/gin v1.10.0
+	github.com/gin-gonic/gin v1.10.1
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/hetznercloud/hcloud-go/v2 v2.21.0
 	github.com/markbates/goth v1.81.0
