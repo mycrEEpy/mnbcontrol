@@ -45,7 +45,7 @@ type Config struct {
 	Location               *hcloud.Location
 	Networks               []*hcloud.Network
 	SSHKeys                []*hcloud.SSHKey
-	DNSZoneID              string
+	DNSZoneID              int64
 	DiscordGuildID         string
 	DiscordChannelID       string
 	DiscordAdminRoleID     string
@@ -69,10 +69,12 @@ func New(config *Config) (*Control, error) {
 	}))
 
 	var err error
+
 	control.discordSession, err = discordgo.New("Bot " + os.Getenv("DISCORD_BOT_TOKEN"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create discord session: %s", err)
 	}
+
 	control.discordSession.AddHandler(control.handleDiscordMessage)
 	control.discordSession.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsDirectMessages | discordgo.IntentsGuildMessages)
 
@@ -114,17 +116,20 @@ func (control *Control) Run() error {
 	}
 
 	shutdownWG := &sync.WaitGroup{}
-	shutdownChan := make(chan os.Signal)
-	daemonQuitChan := make(chan os.Signal)
+	shutdownChan := make(chan os.Signal, 1)
+	daemonQuitChan := make(chan os.Signal, 1)
+
 	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
 
 	go control.daemon(daemonQuitChan, shutdownWG)
 	go control.waitForShutdown(shutdownChan, daemonQuitChan, shutdownWG)
 
 	log.Infof("control api listening on %s", control.api.Addr)
-	if err = control.api.ListenAndServe(); err != http.ErrServerClosed {
+
+	if err = control.api.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("control api server failed: %s", err)
 	}
+
 	shutdownWG.Wait()
 
 	return nil
@@ -132,51 +137,68 @@ func (control *Control) Run() error {
 
 func (control *Control) daemon(quit <-chan os.Signal, wg *sync.WaitGroup) {
 	log.Infof("control daemon started")
+
 	wg.Add(1)
+
 	tickerDuration := 5 * time.Minute
+
 	ticker := time.NewTicker(tickerDuration)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ticker.C:
 			log.Debug("daemon ticker triggered")
+
 			managedServers, err := control.listServers(context.Background())
 			if err != nil {
 				log.Errorf("daemon error: %s", err)
 				break
 			}
 			now := time.Now()
+
 			for _, s := range managedServers {
 				log.Debugf("checking ttl for managedServer: %+v", *s)
+
 				if s.Status != hcloud.ServerStatusRunning && s.Status != hcloud.ServerStatusOff {
 					log.Infof("daemon warn: server %s is in status %s, skipping", s.Name, s.Status)
 					continue
 				}
+
 				ttlStr, ok := s.Labels[LabelTTL]
+
 				if !ok {
 					log.Errorf("daemon error: ttl label missing on server %s", s.Name)
 					continue
 				}
+
 				ttlInt, err := strconv.Atoi(ttlStr)
 				if err != nil {
 					log.Errorf("daemon error: failed to parse ttl: %s", err)
 					continue
 				}
+
 				ttl := time.Unix(int64(ttlInt), 0)
+
 				if now.After(ttl) {
 					log.Infof("daemon: server %s is past its ttl, terminating now", s.Name)
+
 					err = control.terminateServer(context.Background(), s.Name)
 					if err != nil {
 						log.Errorf("daemon error: failed to terminate server %s: %s", s.Name, err)
 						continue
 					}
 				}
+
 				log.Debugf("duration until server %s will reach its ttl: %s -> %s", s.Name, ttl.Sub(now), ttl)
 			}
+
 			ticker.Reset(tickerDuration)
 		case <-quit:
 			wg.Done()
+
 			log.Info("daemon shutdown complete")
+
 			return
 		}
 	}
@@ -184,19 +206,25 @@ func (control *Control) daemon(quit <-chan os.Signal, wg *sync.WaitGroup) {
 
 func (control *Control) waitForShutdown(shutdownChan <-chan os.Signal, quitChan chan<- os.Signal, shutdownWG *sync.WaitGroup) {
 	shutdownWG.Add(1)
+
 	sig := <-shutdownChan
 	quitChan <- sig
+
 	err := control.discordSession.Close()
 	if err != nil {
 		log.Errorf("failed to close discord session: %s", err)
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
 	err = control.api.Shutdown(ctx)
 	if err != nil {
 		log.Errorf("failed to shutdown api server: %s", err)
 	}
+
 	log.Info("control shutdown complete, see you next time!")
+
 	shutdownWG.Done()
 }
 
@@ -205,12 +233,15 @@ func (control *Control) listServers(ctx context.Context) ([]*hcloud.Server, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to list servers: %s", err)
 	}
+
 	var managedServers []*hcloud.Server
+
 	for _, s := range servers {
 		if s.Labels[LabelManagedBy] == LabelValueMangedByControl {
 			managedServers = append(managedServers, s)
 		}
 	}
+
 	return managedServers, nil
 }
 
@@ -221,13 +252,16 @@ func (control *Control) newServer(ctx context.Context, req CreateNewServerReques
 	if err != nil {
 		return nil, fmt.Errorf("failed to list images: %s", err)
 	}
+
 	var blueprintImage *hcloud.Image
+
 	for _, image := range allImages {
 		if image.Labels[LabelActiveBlueprint] == "true" {
 			blueprintImage = image
 			break
 		}
 	}
+
 	if blueprintImage == nil {
 		return nil, fmt.Errorf("unable to find active blueprint image for server %s", req.ServerName)
 	}
@@ -236,10 +270,13 @@ func (control *Control) newServer(ctx context.Context, req CreateNewServerReques
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ttl duration: %s", err)
 	}
+
 	if ttlDuration > MaxTTL {
 		return nil, errors.New("maximum ttl overflow")
 	}
+
 	ttl := time.Now().Add(ttlDuration - 5*time.Minute)
+
 	r, _, err := control.hclient.Server.Create(ctx, hcloud.ServerCreateOpts{
 		Name:             req.ServerName,
 		ServerType:       &hcloud.ServerType{Name: req.ServerType},
@@ -258,11 +295,14 @@ func (control *Control) newServer(ctx context.Context, req CreateNewServerReques
 		return nil, fmt.Errorf("failed to create server %s: %s", req.ServerName, err)
 	}
 
-	dnsEntry, err := control.attachDNSRecordToServer(ctx, r.Server)
-	if err != nil {
-		return nil, fmt.Errorf("failed to attach dns record to server %s: %s", req.ServerName, err)
+	if control.Config.DNSZoneID > 0 {
+		dnsEntry, err := control.attachDNSRecordToServer(ctx, r.Server)
+		if err != nil {
+			return nil, fmt.Errorf("failed to attach dns record to server %s: %s", req.ServerName, err)
+		}
+
+		r.Server.PublicNet.IPv4.DNSPtr = dnsEntry
 	}
-	r.Server.PublicNet.IPv4.DNSPtr = dnsEntry
 
 	return r.Server, nil
 }
@@ -272,7 +312,9 @@ func (control *Control) startServer(ctx context.Context, req StartServerRequest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list images: %s", err)
 	}
+
 	var latestServiceImage *hcloud.Image
+
 	for _, image := range allImages {
 		if image.Labels[LabelService] == req.ServerName {
 			if latestServiceImage == nil {
@@ -293,10 +335,13 @@ func (control *Control) startServer(ctx context.Context, req StartServerRequest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ttl duration: %s", err)
 	}
+
 	if ttlDuration > MaxTTL {
 		return nil, errors.New("maximum ttl overflow")
 	}
+
 	ttl := time.Now().Add(ttlDuration - 5*time.Minute)
+
 	r, _, err := control.hclient.Server.Create(ctx, hcloud.ServerCreateOpts{
 		Name:             req.ServerName,
 		ServerType:       &hcloud.ServerType{Name: latestServiceImage.Labels[LabelServerType]},
@@ -315,11 +360,12 @@ func (control *Control) startServer(ctx context.Context, req StartServerRequest)
 		return nil, fmt.Errorf("failed to create server %s: %s", req.ServerName, err)
 	}
 
-	if len(control.Config.DNSZoneID) > 0 {
+	if control.Config.DNSZoneID > 0 {
 		dnsEntry, err := control.attachDNSRecordToServer(ctx, r.Server)
 		if err != nil {
 			return nil, fmt.Errorf("failed to attach dns record to server %s: %s", req.ServerName, err)
 		}
+
 		r.Server.PublicNet.IPv4.DNSPtr = dnsEntry
 	}
 
@@ -331,6 +377,7 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 	if err != nil {
 		return fmt.Errorf("failed to get server %s by name: %s", serverName, err)
 	}
+
 	if server == nil {
 		return errors.New("server does not exist")
 	}
@@ -402,6 +449,7 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 		if err != nil {
 			return fmt.Errorf("failed to delete image %s[%d]: %s", server.Image.Name, server.Image.ID, err)
 		}
+
 		log.Infof("deleted previous snapshot %s[%d]", server.Image.Name, server.Image.ID)
 	} else {
 		log.Infof("skipping deletion of snapshot")
@@ -410,8 +458,10 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 	// re-get server and check if it's locked until unlocked
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
+
 	timeout := time.NewTimer(60 * time.Second)
 	defer timeout.Stop()
+
 	err = func() error {
 		for {
 			select {
@@ -420,6 +470,7 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 				if err != nil {
 					return fmt.Errorf("failed to get server %s by name: %s", serverName, err)
 				}
+
 				if !server.Locked {
 					return nil
 				}
@@ -452,16 +503,37 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 
 	log.Infof("deleted server %s", serverName)
 
+	dnsName := serverName + ".svc"
+
 	if recordID, ok := server.Labels[LabelDNSARecordID]; ok {
-		err = deleteDNSRecord(recordID)
+		deleteSetResult, _, err := control.hclient.Zone.DeleteRRSet(ctx, &hcloud.ZoneRRSet{
+			Zone: &hcloud.Zone{Name: "mnbr.eu"},
+			Name: dnsName,
+			Type: hcloud.ZoneRRSetTypeA,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to delete dns A record %s for server %s: %s", recordID, serverName, err)
+		}
+
+		err = control.hclient.Action.WaitFor(ctx, deleteSetResult.Action)
 		if err != nil {
 			return fmt.Errorf("failed to delete dns A record %s for server %s: %s", recordID, serverName, err)
 		}
 	}
+
 	if recordID, ok := server.Labels[LabelDNSAAAARecordID]; ok {
-		err = deleteDNSRecord(recordID)
+		deleteSetResult, _, err := control.hclient.Zone.DeleteRRSet(ctx, &hcloud.ZoneRRSet{
+			Zone: &hcloud.Zone{Name: "mnbr.eu"},
+			Name: dnsName,
+			Type: hcloud.ZoneRRSetTypeAAAA,
+		})
 		if err != nil {
-			return fmt.Errorf("failed to delete dns AAAA record %s for server %s: %s", recordID, serverName, err)
+			return fmt.Errorf("failed to delete dns A record %s for server %s: %s", recordID, serverName, err)
+		}
+
+		err = control.hclient.Action.WaitFor(ctx, deleteSetResult.Action)
+		if err != nil {
+			return fmt.Errorf("failed to delete dns A record %s for server %s: %s", recordID, serverName, err)
 		}
 	}
 
@@ -497,12 +569,15 @@ func (control *Control) listImages(ctx context.Context) ([]*hcloud.Image, error)
 	if err != nil {
 		return nil, err
 	}
+
 	var managedImages []*hcloud.Image
+
 	for _, image := range images {
 		if image.Labels[LabelManagedBy] == LabelValueMangedByControl {
 			managedImages = append(managedImages, image)
 		}
 	}
+
 	return managedImages, nil
 }
 
@@ -511,6 +586,7 @@ func (control *Control) rebootServer(ctx context.Context, serverName string) err
 	if err != nil {
 		return fmt.Errorf("failed to get server %s by name: %s", serverName, err)
 	}
+
 	if server == nil {
 		return errors.New("server does not exist")
 	}
@@ -541,6 +617,7 @@ func (control *Control) extendServer(ctx context.Context, req ExtendServerReques
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse new ttl duration: %s", err)
 	}
+
 	if req.Inverse {
 		extendDuration = extendDuration * -1
 	}
@@ -554,10 +631,12 @@ func (control *Control) extendServer(ctx context.Context, req ExtendServerReques
 	if !ok {
 		return nil, errors.New("missing ttl label")
 	}
+
 	ttlInt, err := strconv.Atoi(ttlStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert ttl to int: %s", err)
 	}
+
 	currentTTL := time.Unix(int64(ttlInt), 0)
 	extendedTTL := currentTTL.Add(extendDuration)
 
@@ -566,6 +645,7 @@ func (control *Control) extendServer(ctx context.Context, req ExtendServerReques
 	}
 
 	server.Labels[LabelTTL] = strconv.Itoa(int(extendedTTL.Unix()))
+
 	server, _, err = control.hclient.Server.Update(ctx, server, hcloud.ServerUpdateOpts{Labels: server.Labels})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update server: %s", err)
@@ -579,6 +659,7 @@ func (control *Control) changeServerType(ctx context.Context, req ChangeServerTy
 	if err != nil {
 		return fmt.Errorf("failed to get server %s by name: %s", req.ServerName, err)
 	}
+
 	if server != nil {
 		return errors.New("can't change type when server is online")
 	}
@@ -587,13 +668,16 @@ func (control *Control) changeServerType(ctx context.Context, req ChangeServerTy
 	if err != nil {
 		return fmt.Errorf("failed to list images: %s", err)
 	}
+
 	var serverImage *hcloud.Image
+
 	for _, image := range images {
 		if image.Labels[LabelService] == req.ServerName {
 			serverImage = image
 			break
 		}
 	}
+
 	if serverImage == nil {
 		return fmt.Errorf("image for server %s not found", req.ServerName)
 	}
@@ -602,43 +686,84 @@ func (control *Control) changeServerType(ctx context.Context, req ChangeServerTy
 	if err != nil {
 		return fmt.Errorf("failed to get server type: %s", err)
 	}
+
 	if serverType == nil {
 		return fmt.Errorf("server type %s is invalid", req.ServerType)
 	}
 
 	serverImage.Labels[LabelServerType] = req.ServerType
+
 	_, _, err = control.hclient.Image.Update(ctx, serverImage, hcloud.ImageUpdateOpts{Labels: serverImage.Labels})
 	if err != nil {
 		return fmt.Errorf("failed to update image for server %s: %s", req.ServerName, err)
 	}
+
 	return nil
 }
 
 func (control *Control) attachDNSRecordToServer(ctx context.Context, server *hcloud.Server) (string, error) {
 	dnsName := server.Name + ".svc"
-	dnsARecordID, err := createDNSRecord(control.Config.DNSZoneID, dnsName, "A", server.PublicNet.IPv4.IP.String())
+
+	aResult, _, err := control.hclient.Zone.CreateRRSet(ctx, &hcloud.Zone{ID: control.Config.DNSZoneID}, hcloud.ZoneRRSetCreateOpts{
+		Name: dnsName,
+		Type: hcloud.ZoneRRSetTypeA,
+		TTL:  new(300),
+		Records: []hcloud.ZoneRRSetRecord{
+			{
+				Value:   server.PublicNet.IPv4.IP.String(),
+				Comment: "Managed by mnbcontrol",
+			},
+		},
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to create dns A record: %s", err)
 	}
-	dnsAAAARecordID, err := createDNSRecord(control.Config.DNSZoneID, dnsName, "AAAA", server.PublicNet.IPv6.IP.String()+"1")
+
+	err = control.hclient.Action.WaitFor(ctx, aResult.Action)
 	if err != nil {
 		return "", fmt.Errorf("failed to create dns A record: %s", err)
 	}
+
+	aaaaResult, _, err := control.hclient.Zone.CreateRRSet(ctx, &hcloud.Zone{ID: control.Config.DNSZoneID}, hcloud.ZoneRRSetCreateOpts{
+		Name: dnsName,
+		Type: hcloud.ZoneRRSetTypeAAAA,
+		TTL:  new(300),
+		Records: []hcloud.ZoneRRSetRecord{
+			{
+				Value:   server.PublicNet.IPv6.IP.String() + "1",
+				Comment: "Managed by mnbcontrol",
+			},
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to create dns AAAA record: %s", err)
+	}
+
+	err = control.hclient.Action.WaitFor(ctx, aaaaResult.Action)
+	if err != nil {
+		return "", fmt.Errorf("failed to create dns AAAAA record: %s", err)
+	}
+
 	labels := server.Labels
-	labels[LabelDNSARecordID] = dnsARecordID
-	labels[LabelDNSAAAARecordID] = dnsAAAARecordID
+	labels[LabelDNSARecordID] = aResult.RRSet.ID
+	labels[LabelDNSAAAARecordID] = aaaaResult.RRSet.ID
+
 	_, _, err = control.hclient.Server.Update(ctx, server, hcloud.ServerUpdateOpts{Labels: labels})
 	if err != nil {
 		return "", fmt.Errorf("failed to attach dns record id to labels: %s", err)
 	}
+
 	dnsFullEntry := dnsName + ".mnbr.eu"
+
 	_, _, err = control.hclient.Server.ChangeDNSPtr(ctx, server, server.PublicNet.IPv4.IP.String(), new(dnsFullEntry))
 	if err != nil {
 		return "", fmt.Errorf("failed to change ipv4 reverse dns pointer for server %s: %s", server.Name, err)
 	}
+
 	_, _, err = control.hclient.Server.ChangeDNSPtr(ctx, server, server.PublicNet.IPv6.IP.String()+"1", new(dnsFullEntry))
 	if err != nil {
 		return "", fmt.Errorf("failed to change ipv6 reverse dns pointer for server %s: %s", server.Name, err)
 	}
+
 	return dnsFullEntry, nil
 }
