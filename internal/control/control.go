@@ -63,7 +63,10 @@ func New(config *Config) (*Control, error) {
 	if !ok {
 		return nil, errors.New("HCLOUD_TOKEN must be set")
 	}
-	control.hclient = hcloud.NewClient(hcloud.WithToken(token), hcloud.WithPollBackoffFunc(hcloud.ConstantBackoff(5*time.Second)))
+
+	control.hclient = hcloud.NewClient(hcloud.WithToken(token), hcloud.WithPollOpts(hcloud.PollOpts{
+		BackoffFunc: hcloud.ConstantBackoff(5 * time.Second),
+	}))
 
 	var err error
 	control.discordSession, err = discordgo.New("Bot " + os.Getenv("DISCORD_BOT_TOKEN"))
@@ -340,25 +343,18 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 	if err != nil {
 		return fmt.Errorf("failed to shutdown server %s: %s", serverName, err)
 	}
-	progressChan, errChan := control.hclient.Action.WatchProgress(ctx, shutdownAction)
-	err = func() error {
-		for {
-			select {
-			case progress := <-progressChan:
-				log.Infof("shutdown progress for server %s: %d%%", serverName, progress)
-				if progress == 100 {
-					log.Infof("shutdown complete for server %s", serverName)
-					return nil
-				}
-			case err := <-errChan:
-				if err != nil {
-					return fmt.Errorf("failed to shutdown server %s: %s", serverName, err)
-				}
-			}
+
+	err = control.hclient.Action.WaitForFunc(ctx, func(update *hcloud.Action) error {
+		log.Infof("shutdown progress for server %s: %d%%", serverName, update.Progress)
+
+		if update.Progress == 100 {
+			log.Infof("shutdown complete for server %s", serverName)
 		}
-	}()
+
+		return nil
+	}, shutdownAction)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to shutdown server %s: %s", serverName, err)
 	}
 
 	imageResult, _, err := control.hclient.Server.CreateImage(ctx, server, &hcloud.ServerCreateImageOpts{
@@ -374,25 +370,17 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 		return fmt.Errorf("failed to create snapshot for server %s: %s", serverName, err)
 	}
 
-	progressChan, errChan = control.hclient.Action.WatchProgress(ctx, imageResult.Action)
-	err = func() error {
-		for {
-			select {
-			case progress := <-progressChan:
-				log.Infof("snapshot progress for server %s: %d%%", serverName, progress)
-				if progress == 100 {
-					log.Infof("snapshot complete for server %s", serverName)
-					return nil
-				}
-			case err := <-errChan:
-				if err != nil {
-					return fmt.Errorf("failed to snapshot server %s: %s", serverName, err)
-				}
-			}
+	err = control.hclient.Action.WaitForFunc(ctx, func(update *hcloud.Action) error {
+		log.Infof("snapshot progress for server %s: %d%%", serverName, update.Progress)
+
+		if update.Progress == 100 {
+			log.Infof("snapshot complete for server %s", serverName)
 		}
-	}()
+
+		return nil
+	}, imageResult.Action)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to snapshot server %s: %s", serverName, err)
 	}
 
 	err = control.changeImageProtection(ctx, imageResult.Image, hcloud.ImageChangeProtectionOpts{
@@ -444,10 +432,24 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 		return err
 	}
 
-	_, err = control.hclient.Server.Delete(ctx, server)
+	deleteResult, _, err := control.hclient.Server.DeleteWithResult(ctx, server)
 	if err != nil {
 		return fmt.Errorf("failed to delete server %s: %s", serverName, err)
 	}
+
+	err = control.hclient.Action.WaitForFunc(ctx, func(update *hcloud.Action) error {
+		log.Infof("delete progress for server %s: %d%%", serverName, update.Progress)
+
+		if update.Progress == 100 {
+			log.Infof("delete complete for server %s", serverName)
+		}
+
+		return nil
+	}, deleteResult.Action)
+	if err != nil {
+		return fmt.Errorf("failed to delete server %s: %s", serverName, err)
+	}
+
 	log.Infof("deleted server %s", serverName)
 
 	if recordID, ok := server.Labels[LabelDNSARecordID]; ok {
@@ -472,25 +474,17 @@ func (control *Control) changeImageProtection(ctx context.Context, image *hcloud
 		return err
 	}
 
-	progressChan, errChan := control.hclient.Action.WatchProgress(ctx, action)
-	err = func() error {
-		for {
-			select {
-			case progress := <-progressChan:
-				log.Infof("protection change progress for image %s: %d%%", image.Name, progress)
-				if progress == 100 {
-					log.Infof("protection change complete for image %s", image.Name)
-					return nil
-				}
-			case err := <-errChan:
-				if err != nil {
-					return fmt.Errorf("failed to change protection for image %s: %s", image.Name, err)
-				}
-			}
+	err = control.hclient.Action.WaitForFunc(ctx, func(update *hcloud.Action) error {
+		log.Infof("protection change progress for image %s: %d%%", image.Name, update.Progress)
+
+		if update.Progress == 100 {
+			log.Infof("protection change complete for image %s", image.Name)
 		}
-	}()
+
+		return nil
+	}, action)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to change protection for image %s: %s", image.Name, err)
 	}
 
 	return nil
@@ -526,25 +520,17 @@ func (control *Control) rebootServer(ctx context.Context, serverName string) err
 		return fmt.Errorf("failed to reboot server %s: %s", serverName, err)
 	}
 
-	progressChan, errChan := control.hclient.Action.WatchProgress(ctx, rebootAction)
-	err = func() error {
-		for {
-			select {
-			case progress := <-progressChan:
-				log.Infof("reboot progress for server %s: %d%%", serverName, progress)
-				if progress == 100 {
-					log.Infof("reboot complete for server %s", serverName)
-					return nil
-				}
-			case err := <-errChan:
-				if err != nil {
-					return fmt.Errorf("failed to reboot server %s: %s", serverName, err)
-				}
-			}
+	err = control.hclient.Action.WaitForFunc(ctx, func(update *hcloud.Action) error {
+		log.Infof("reboot progress for server %s: %d%%", serverName, update.Progress)
+
+		if update.Progress == 100 {
+			log.Infof("reboot complete for server %s", serverName)
 		}
-	}()
+
+		return nil
+	}, rebootAction)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to reboot server %s: %s", serverName, err)
 	}
 
 	return nil
@@ -569,7 +555,7 @@ func (control *Control) extendServer(ctx context.Context, req ExtendServerReques
 		return nil, errors.New("missing ttl label")
 	}
 	ttlInt, err := strconv.Atoi(ttlStr)
-	if !ok {
+	if err != nil {
 		return nil, fmt.Errorf("failed to convert ttl to int: %s", err)
 	}
 	currentTTL := time.Unix(int64(ttlInt), 0)
