@@ -505,36 +505,32 @@ func (control *Control) terminateServer(ctx context.Context, serverName string) 
 
 	dnsName := serverName + ".svc"
 
-	if recordID, ok := server.Labels[LabelDNSARecordID]; ok {
-		deleteSetResult, _, err := control.hclient.Zone.DeleteRRSet(ctx, &hcloud.ZoneRRSet{
-			Zone: &hcloud.Zone{Name: "mnbr.eu"},
-			Name: dnsName,
-			Type: hcloud.ZoneRRSetTypeA,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to delete dns A record %s for server %s: %s", recordID, serverName, err)
-		}
-
-		err = control.hclient.Action.WaitFor(ctx, deleteSetResult.Action)
-		if err != nil {
-			return fmt.Errorf("failed to delete dns A record %s for server %s: %s", recordID, serverName, err)
-		}
+	deleteSetResultA, _, err := control.hclient.Zone.DeleteRRSet(ctx, &hcloud.ZoneRRSet{
+		Zone: &hcloud.Zone{Name: "mnbr.eu"},
+		Name: dnsName,
+		Type: hcloud.ZoneRRSetTypeA,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete dns A record for server %s: %s", serverName, err)
 	}
 
-	if recordID, ok := server.Labels[LabelDNSAAAARecordID]; ok {
-		deleteSetResult, _, err := control.hclient.Zone.DeleteRRSet(ctx, &hcloud.ZoneRRSet{
-			Zone: &hcloud.Zone{Name: "mnbr.eu"},
-			Name: dnsName,
-			Type: hcloud.ZoneRRSetTypeAAAA,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to delete dns A record %s for server %s: %s", recordID, serverName, err)
-		}
+	err = control.hclient.Action.WaitFor(ctx, deleteSetResultA.Action)
+	if err != nil {
+		return fmt.Errorf("failed to delete dns A record for server %s: %s", serverName, err)
+	}
 
-		err = control.hclient.Action.WaitFor(ctx, deleteSetResult.Action)
-		if err != nil {
-			return fmt.Errorf("failed to delete dns A record %s for server %s: %s", recordID, serverName, err)
-		}
+	deleteSetResultAAAA, _, err := control.hclient.Zone.DeleteRRSet(ctx, &hcloud.ZoneRRSet{
+		Zone: &hcloud.Zone{Name: "mnbr.eu"},
+		Name: dnsName,
+		Type: hcloud.ZoneRRSetTypeAAAA,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete dns A record for server %s: %s", serverName, err)
+	}
+
+	err = control.hclient.Action.WaitFor(ctx, deleteSetResultAAAA.Action)
+	if err != nil {
+		return fmt.Errorf("failed to delete dns A record for server %s: %s", serverName, err)
 	}
 
 	return nil
@@ -742,15 +738,6 @@ func (control *Control) attachDNSRecordToServer(ctx context.Context, server *hcl
 	err = control.hclient.Action.WaitFor(ctx, aaaaResult.Action)
 	if err != nil {
 		return "", fmt.Errorf("failed to create dns AAAAA record: %s", err)
-	}
-
-	labels := server.Labels
-	labels[LabelDNSARecordID] = aResult.RRSet.ID
-	labels[LabelDNSAAAARecordID] = aaaaResult.RRSet.ID
-
-	_, _, err = control.hclient.Server.Update(ctx, server, hcloud.ServerUpdateOpts{Labels: labels})
-	if err != nil {
-		return "", fmt.Errorf("failed to attach dns record id to labels: %s", err)
 	}
 
 	dnsFullEntry := dnsName + ".mnbr.eu"
